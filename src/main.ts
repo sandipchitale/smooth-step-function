@@ -68,18 +68,21 @@ pointLight.position.set(50, 50, 50);
 scene.add(pointLight);
 
 // --- Helpers (Grid & Axes) ---
-const gridSize = 60;
-const gridDivisions = 60; // Unit size (1) squares
+// --- Helpers (Grid & Axes) ---
+const gridSize = 120; // Increased to cover -60 to 60 in Y
+const gridDivisions = 120;
 const gridHelper = new THREE.GridHelper(gridSize, gridDivisions, 0x333333, 0x1a1a1a);
 
-// Align grid corner with origin.
+// Align grid corner sort of...
 gridHelper.rotation.x = Math.PI / 2;
-gridHelper.position.set(gridSize / 2, gridSize / 2, -0.01); 
+// Position so it covers X: 0..120, Y: -60..60
+// Center at X=60, Y=0.
+gridHelper.position.set(60, 0, -0.01); 
 scene.add(gridHelper);
 
 // Perpendicular Grid (Hypothetical "Floor" Plane)
 // Spans X (Real) and Z (Depth)
-// Origin at (0.5, 0, 0). Size increased to 120 to cover interesting range (-60 to 60 relative to origin, so up to X=60.5)
+// Origin at (0.5, 0, 0). Size 120 covers X=-59.5 to 60.5.
 const criticalGridHelper = new THREE.GridHelper(120, 120, 0x333333, 0x1a1a1a);
 // Default is XZ plane, so no rotation needed.
 criticalGridHelper.position.set(0.5, 0, 0);
@@ -89,13 +92,13 @@ scene.add(criticalGridHelper);
 const axesMaterial = new THREE.LineBasicMaterial({ color: 0x666666 }); // Gray color
 const axesGeometry = new THREE.BufferGeometry().setFromPoints([
   new THREE.Vector3(0, 0, 0), new THREE.Vector3(60, 0, 0), // Real Axis (X)
-  new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 60, 0), // Imaginary / Count Axis (Y)
+  new THREE.Vector3(0, -60, 0), new THREE.Vector3(0, 60, 0), // Imaginary / Count Axis (Y) - Range -60 to 60
 ]);
 const axesLines = new THREE.LineSegments(axesGeometry, axesMaterial);
 scene.add(axesLines);
 
 // Critical Strip (0 < Re(s) < 1)
-const stripGeometry = new THREE.PlaneGeometry(1, 60); // Width 1, Height 60
+const stripGeometry = new THREE.PlaneGeometry(1, 120); // Width 1, Height 120
 const stripMaterial = new THREE.MeshBasicMaterial({ 
   color: 0x888888, 
   transparent: true, 
@@ -103,24 +106,26 @@ const stripMaterial = new THREE.MeshBasicMaterial({
   side: THREE.DoubleSide
 });
 const criticalStrip = new THREE.Mesh(stripGeometry, stripMaterial);
-// Position: Center X = 0.5. Center Y = 30 (Half of 60).
-criticalStrip.position.set(0.5, 30, 0.01);
+// Position: Center X = 0.5. Center Y = 0 (Center of -60 to 60).
+criticalStrip.position.set(0.5, 0, 0.01);
 scene.add(criticalStrip);
 
 // Critical Line (Re(s) = 0.5)
 const criticalLineMaterial = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 });
 const criticalLineGeometry = new THREE.BufferGeometry().setFromPoints([
-    new THREE.Vector3(0.5, 0, 0),
+    new THREE.Vector3(0.5, -60, 0),
     new THREE.Vector3(0.5, 60, 0)
 ]);
 const criticalLine = new THREE.Line(criticalLineGeometry, criticalLineMaterial);
 scene.add(criticalLine);
 
 // --- Zeta Zeros ---
-const zetaZeros = [
+const positiveZetaZeros = [
   14.134725, 21.022040, 25.010858, 30.424876, 32.935062,
   37.586178, 40.918719, 43.327073, 48.005151, 49.773832
 ];
+// Include negative zeros
+const zetaZeros = [...positiveZetaZeros, ...positiveZetaZeros.map(z => -z)];
 
 const zeroesGeometry = new THREE.BufferGeometry();
 const zeroesPositions = new Float32Array(zetaZeros.length * 3);
@@ -134,7 +139,11 @@ zetaZeros.forEach((z, i) => {
   const div = document.createElement('div');
   div.className = 'prime-label'; // Reusing prime-label for consistent style, or could make new one
   // div.style.color = '#aaf'; // Removed override to use CSS default (white)
-  div.textContent = `i${z.toFixed(2)}`;
+  
+  // Format label: i14.13 for positive, -i14.13 for negative
+  const sign = z < 0 ? '-' : '';
+  div.textContent = `${sign}i${Math.abs(z).toFixed(2)}`;
+  
   const label = new CSS2DObject(div);
   label.position.set(-2, z, 0); // Position to the left of the imaginary axis (0)
   scene.add(label);
@@ -209,6 +218,95 @@ const graphLine = new THREE.Line(graphGeometry, graphMaterial);
 scene.add(graphLine);
 
 // --- Math Functions ---
+
+// Simple Complex Number implementation
+class Complex {
+  re: number;
+  im: number;
+  
+  constructor(re: number, im: number) {
+    this.re = re;
+    this.im = im;
+  }
+
+  add(c: Complex): Complex {
+    return new Complex(this.re + c.re, this.im + c.im);
+  }
+
+  sub(c: Complex): Complex {
+    return new Complex(this.re - c.re, this.im - c.im);
+  }
+
+  mul(c: Complex): Complex {
+    return new Complex(this.re * c.re - this.im * c.im, this.re * c.im + this.im * c.re);
+  }
+
+  div(c: Complex): Complex {
+    const denom = c.re * c.re + c.im * c.im;
+    return new Complex(
+      (this.re * c.re + this.im * c.im) / denom,
+      (this.im * c.re - this.re * c.im) / denom
+    );
+  }
+}
+
+// Calculate n^(-s) where s = 0.5 + iy
+function nPowMinusS(n: number, y: number): Complex {
+  // n^(-s) = n^(-0.5) * n^(-iy)
+  // = (1/sqrt(n)) * (cos(y ln n) - i sin(y ln n))  <-- standard calc is exp(-iy ln n) = cos(-y ln n) + i sin(-y ln n)
+  // = (1/sqrt(n)) * (cos(y * Math.log(n)) - i * sin(y * Math.log(n)))   <-- wait, exp(-ix) = cos(x) - i sin(x). Yes.
+  
+  const r = 1.0 / Math.sqrt(n);
+  const theta = -y * Math.log(n);
+  return new Complex(r * Math.cos(theta), r * Math.sin(theta));
+}
+
+// Dirichlet Eta Function (Alternating Zeta)
+// eta(s) = sum (-1)^(n-1) / n^s
+// Valid for Re(s) > 0
+function eta(y: number, terms: number = 100): Complex {
+  let sum = new Complex(0, 0);
+  for (let n = 1; n <= terms; n++) {
+    const term = nPowMinusS(n, y);
+    if ((n - 1) % 2 === 1) { // Subtract if (n-1) is odd => n is even (2, 4...)
+       sum = sum.sub(term);
+    } else {
+       sum = sum.add(term);
+    }
+  }
+  return sum;
+}
+
+// Zeta(s) = eta(s) / (1 - 2^(1-s))
+function zeta(y: number): Complex {
+  // s_re = 0.5 implicitly
+  // 1 - s = 0.5 - iy
+  // 2^(1-s) = 2^0.5 * 2^(-iy) = sqrt(2) * (cos(y ln 2) - i sin(y ln 2))  (similar logic to n^-s but base 2)
+  const ln2 = Math.log(2);
+  const factorRe = Math.sqrt(2) * Math.cos(-y * ln2);
+  const factorIm = Math.sqrt(2) * Math.sin(-y * ln2);
+  
+  const denom = new Complex(1 - factorRe, -factorIm);
+  const num = eta(y, 200); // 200 terms for better precision
+  
+  return num.div(denom);
+}
+
+// --- Zeta Function Curve ---
+const zetaMaterial = new THREE.LineBasicMaterial({ color: 0xff00ff, linewidth: 2 }); // Magenta
+const zetaGeometry = new THREE.BufferGeometry();
+const zetaPoints: number[] = [];
+
+// Range -50 to 50
+for (let y = -50; y <= 50; y += 0.01) {
+    const z = zeta(y);
+    // Plot at (0.5 + Re(zeta), y, Im(zeta))
+    // This wraps the "value" around the critical line in 3D space
+    zetaPoints.push(0.5 + z.re, y, z.im);
+}
+zetaGeometry.setAttribute('position', new THREE.Float32BufferAttribute(zetaPoints, 3));
+const zetaLine = new THREE.Line(zetaGeometry, zetaMaterial);
+scene.add(zetaLine);
 
 // Smoothstep implementation: 3x^2 - 2x^3 for x in [0, 1]
 function smoothStep(edge0: number, edge1: number, x: number): number {
