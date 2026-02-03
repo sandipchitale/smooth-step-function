@@ -77,6 +77,14 @@ gridHelper.rotation.x = Math.PI / 2;
 gridHelper.position.set(gridSize / 2, gridSize / 2, -0.01); 
 scene.add(gridHelper);
 
+// Perpendicular Grid (Hypothetical "Floor" Plane)
+// Spans X (Real) and Z (Depth)
+// Origin at (0.5, 0, 0). Size increased to 120 to cover interesting range (-60 to 60 relative to origin, so up to X=60.5)
+const criticalGridHelper = new THREE.GridHelper(120, 120, 0x333333, 0x1a1a1a);
+// Default is XZ plane, so no rotation needed.
+criticalGridHelper.position.set(0.5, 0, 0);
+scene.add(criticalGridHelper);
+
 // Replace multi-colored AxesHelper with simple Gray axes
 const axesMaterial = new THREE.LineBasicMaterial({ color: 0x666666 }); // Gray color
 const axesGeometry = new THREE.BufferGeometry().setFromPoints([
