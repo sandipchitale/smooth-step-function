@@ -89,6 +89,12 @@ const criticalGridHelper = new THREE.GridHelper(120, 240, 0x444455, 0x1a1a2e);
 criticalGridHelper.position.set(0.5, 0, 0);
 scene.add(criticalGridHelper);
 
+// YZ Grid (Passing through Imaginary Axis, X=0)
+const imaginaryGridHelper = new THREE.GridHelper(120, 240, 0x444455, 0x1a1a2e);
+imaginaryGridHelper.rotation.z = Math.PI / 2; // Rotate 90 deg around Z to align with YZ plane
+imaginaryGridHelper.position.set(0, 0, 0);
+scene.add(imaginaryGridHelper);
+
 // Replace multi-colored AxesHelper with simple Gray axes
 const axesMaterial = new THREE.LineBasicMaterial({ color: 0x666666 }); // Gray color
 const axesGeometry = new THREE.BufferGeometry().setFromPoints([
@@ -269,7 +275,8 @@ scene.add(primesPoints);
 const params = {
   e: 0.0,
   showXYGrid: true,
-  showXZGrid: true
+  showXZGrid: true,
+  showYZGrid: true
 };
 
 const graphMaterial = new THREE.LineBasicMaterial({ color: 0x00ffff, linewidth: 2 }); // Cyan
@@ -432,6 +439,9 @@ gui.add(params, 'showXYGrid').name('Show XY Grid').onChange((v: boolean) => {
 });
 gui.add(params, 'showXZGrid').name('Show XZ Grid').onChange((v: boolean) => {
     criticalGridHelper.visible = v;
+});
+gui.add(params, 'showYZGrid').name('Show YZ Grid (Re=0)').onChange((v: boolean) => {
+    imaginaryGridHelper.visible = v;
 });
 
 // --- Animation Loop ---
