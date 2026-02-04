@@ -3,6 +3,7 @@ import './style.css';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import GUI from 'lil-gui';
+// Removed LineSegments2 imports
 
 // --- Configuration ---
 const MAX_PRIME_VALUE = 47;
@@ -138,13 +139,19 @@ lineLabel.position.set(-5, 8, 0); // Top Left, above strip label
 scene.add(lineLabel);
 
 // Connector Lines
-const connectorMaterial = new THREE.LineBasicMaterial({ color: 0x888888, transparent: true, opacity: 0.5 });
-const connectorGeometry = new THREE.BufferGeometry().setFromPoints([
-    new THREE.Vector3(-4, 4, 0), new THREE.Vector3(0.5, 4, 0), // From Strip Label info to Strip
-    new THREE.Vector3(-4, 8, 0), new THREE.Vector3(0.5, 8, 0)  // From Line Label info to Line
-]);
-const connectorLines = new THREE.LineSegments(connectorGeometry, connectorMaterial);
-scene.add(connectorLines);
+// Connector Lines (Cylinders/Tubes)
+function createConnector(start: THREE.Vector3, end: THREE.Vector3, radius: number = 0.02, color: number = 0x888888) {
+    const path = new THREE.LineCurve3(start, end);
+    const geometry = new THREE.TubeGeometry(path, 1, radius, 8, false);
+    const material = new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: 0.5 });
+    return new THREE.Mesh(geometry, material);
+}
+
+const connector1 = createConnector(new THREE.Vector3(-4, 4, 0), new THREE.Vector3(0, 4, 0), 0.02);
+scene.add(connector1);
+
+const connector2 = createConnector(new THREE.Vector3(-4, 8, 0), new THREE.Vector3(0.5, 8, 0), 0.02);
+scene.add(connector2);
 
 // Critical Line (Re(s) = 0.5)
 const criticalLineMaterial = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 });
