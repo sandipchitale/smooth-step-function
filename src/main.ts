@@ -194,9 +194,9 @@ const zeroesMaterial = new THREE.PointsMaterial({
 const zeroesPoints = new THREE.Points(zeroesGeometry, zeroesMaterial);
 scene.add(zeroesPoints);
 
-// --- Trivial Zeta Zeros (-2, -4, ... -40) ---
+// --- Trivial Zeta Zeros (-2, -4, ... -48) ---
 const trivialZeros: number[] = [];
-for (let n = 2; n <= 40; n += 2) {
+for (let n = 2; n <= 48; n += 2) {
     trivialZeros.push(-n);
 }
 
