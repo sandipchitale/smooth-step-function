@@ -283,7 +283,8 @@ const params = {
   e: 0.0,
   showXYGrid: true,
   showXZGrid: true,
-  showYZGrid: true
+  showYZGrid: true,
+  xzGridY: 0
 };
 
 const graphMaterial = new THREE.LineBasicMaterial({ color: 0x00ffff, linewidth: 2 }); // Cyan
@@ -439,13 +440,16 @@ function updateGraph() {
 updateGraph();
 
 // --- GUI ---
-const gui = new GUI();
+const gui = new GUI({ width: 600 });
 gui.add(params, 'e', 0, 0.99).name('Smoothness (e)').onChange(updateGraph);
 gui.add(params, 'showXYGrid').name('Show XY Grid').onChange((v: boolean) => {
     gridHelper.visible = v;
 });
 gui.add(params, 'showXZGrid').name('Show XZ Grid').onChange((v: boolean) => {
     criticalGridHelper.visible = v;
+});
+gui.add(params, 'xzGridY', -60, 60, 0.01).name('XZ Grid Y').onChange((v: number) => {
+    criticalGridHelper.position.y = v;
 });
 gui.add(params, 'showYZGrid').name('Show YZ Grid (Re=0)').onChange((v: boolean) => {
     imaginaryGridHelper.visible = v;
