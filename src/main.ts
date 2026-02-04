@@ -76,8 +76,8 @@ const gridHelper = new THREE.GridHelper(gridSize, gridDivisions, 0x333333, 0x1a1
 // Align grid corner sort of...
 gridHelper.rotation.x = Math.PI / 2;
 // Position so it covers X: 0..120, Y: -60..60
-// Center at X=60, Y=0.
-gridHelper.position.set(60, 0, -0.01); 
+// Center at X=0, Y=0 to cover -60 to 60 in both X and Y
+gridHelper.position.set(0, 0, -0.01); 
 scene.add(gridHelper);
 
 // Perpendicular Grid (Hypothetical "Floor" Plane)
@@ -91,7 +91,7 @@ scene.add(criticalGridHelper);
 // Replace multi-colored AxesHelper with simple Gray axes
 const axesMaterial = new THREE.LineBasicMaterial({ color: 0x666666 }); // Gray color
 const axesGeometry = new THREE.BufferGeometry().setFromPoints([
-  new THREE.Vector3(0, 0, 0), new THREE.Vector3(60, 0, 0), // Real Axis (X)
+  new THREE.Vector3(-60, 0, 0), new THREE.Vector3(60, 0, 0), // Real Axis (X)
   new THREE.Vector3(0, -60, 0), new THREE.Vector3(0, 60, 0), // Imaginary / Count Axis (Y) - Range -60 to 60
 ]);
 const axesLines = new THREE.LineSegments(axesGeometry, axesMaterial);
@@ -157,6 +157,38 @@ const zeroesMaterial = new THREE.PointsMaterial({
 });
 const zeroesPoints = new THREE.Points(zeroesGeometry, zeroesMaterial);
 scene.add(zeroesPoints);
+
+// --- Trivial Zeta Zeros (-2, -4, ... -40) ---
+const trivialZeros: number[] = [];
+for (let n = 2; n <= 40; n += 2) {
+    trivialZeros.push(-n);
+}
+
+const trivialGeometry = new THREE.BufferGeometry();
+const trivialPositions = new Float32Array(trivialZeros.length * 3);
+
+trivialZeros.forEach((z, i) => {
+    trivialPositions[i * 3] = z;
+    trivialPositions[i * 3 + 1] = 0;
+    trivialPositions[i * 3 + 2] = 0;
+
+    // Label
+    const div = document.createElement('div');
+    div.className = 'prime-label';
+    div.textContent = z.toString();
+    const label = new CSS2DObject(div);
+    label.position.set(z, -2, 0);
+    scene.add(label);
+});
+
+trivialGeometry.setAttribute('position', new THREE.BufferAttribute(trivialPositions, 3));
+const trivialMaterial = new THREE.PointsMaterial({
+    color: 0xaaaaaa, // Light gray for trivial zeros
+    size: 4,
+    sizeAttenuation: false
+});
+const trivialPoints = new THREE.Points(trivialGeometry, trivialMaterial);
+scene.add(trivialPoints);
 
 // Axis Labels
 function createLabel(text: string, x: number, y: number, z: number, className: string = 'axis-label') {
@@ -307,6 +339,8 @@ for (let y = -50; y <= 50; y += 0.01) {
 zetaGeometry.setAttribute('position', new THREE.Float32BufferAttribute(zetaPoints, 3));
 const zetaLine = new THREE.Line(zetaGeometry, zetaMaterial);
 scene.add(zetaLine);
+
+
 
 // Smoothstep implementation: 3x^2 - 2x^3 for x in [0, 1]
 function smoothStep(edge0: number, edge1: number, x: number): number {
