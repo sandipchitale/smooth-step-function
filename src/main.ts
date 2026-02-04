@@ -70,8 +70,9 @@ scene.add(pointLight);
 // --- Helpers (Grid & Axes) ---
 // --- Helpers (Grid & Axes) ---
 const gridSize = 120; // Increased to cover -60 to 60 in Y
-const gridDivisions = 120;
-const gridHelper = new THREE.GridHelper(gridSize, gridDivisions, 0x333333, 0x1a1a1a);
+const gridDivisions = 240; // 0.5 unit resolution
+// Low contrast colors: Center 0x444455, Grid 0x1a1a2e (BG is 0x050510)
+const gridHelper = new THREE.GridHelper(gridSize, gridDivisions, 0x444455, 0x1a1a2e);
 
 // Align grid corner sort of...
 gridHelper.rotation.x = Math.PI / 2;
@@ -83,7 +84,7 @@ scene.add(gridHelper);
 // Perpendicular Grid (Hypothetical "Floor" Plane)
 // Spans X (Real) and Z (Depth)
 // Origin at (0.5, 0, 0). Size 120 covers X=-59.5 to 60.5.
-const criticalGridHelper = new THREE.GridHelper(120, 120, 0x333333, 0x1a1a1a);
+const criticalGridHelper = new THREE.GridHelper(120, 240, 0x444455, 0x1a1a2e);
 // Default is XZ plane, so no rotation needed.
 criticalGridHelper.position.set(0.5, 0, 0);
 scene.add(criticalGridHelper);
@@ -109,6 +110,35 @@ const criticalStrip = new THREE.Mesh(stripGeometry, stripMaterial);
 // Position: Center X = 0.5. Center Y = 0 (Center of -60 to 60).
 criticalStrip.position.set(0.5, 0, 0.01);
 scene.add(criticalStrip);
+
+// Add Labels for Critical Strip and Critical Line
+// Add Labels for Critical Strip and Critical Line
+// Critical Strip Label at the bottom
+const stripLabelDiv = document.createElement('div');
+stripLabelDiv.className = 'axis-label';
+stripLabelDiv.style.color = 'white'; // Explicitly white
+stripLabelDiv.textContent = 'Critical Strip (0 < Re(s) < 1)';
+const stripLabel = new CSS2DObject(stripLabelDiv);
+stripLabel.position.set(-5, 4, 0); // Top Left
+scene.add(stripLabel);
+
+// Critical Line Label at the top
+const lineLabelDiv = document.createElement('div');
+lineLabelDiv.className = 'axis-label';
+lineLabelDiv.style.color = 'white'; // Explicitly white
+lineLabelDiv.textContent = 'Critical Line (1/2 + it)';
+const lineLabel = new CSS2DObject(lineLabelDiv);
+lineLabel.position.set(-5, 8, 0); // Top Left, above strip label
+scene.add(lineLabel);
+
+// Connector Lines
+const connectorMaterial = new THREE.LineBasicMaterial({ color: 0x888888, transparent: true, opacity: 0.5 });
+const connectorGeometry = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(-4, 4, 0), new THREE.Vector3(0.5, 4, 0), // From Strip Label info to Strip
+    new THREE.Vector3(-4, 8, 0), new THREE.Vector3(0.5, 8, 0)  // From Line Label info to Line
+]);
+const connectorLines = new THREE.LineSegments(connectorGeometry, connectorMaterial);
+scene.add(connectorLines);
 
 // Critical Line (Re(s) = 0.5)
 const criticalLineMaterial = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 });
@@ -238,6 +268,8 @@ scene.add(primesPoints);
 // --- Step Function Visualization ---
 const params = {
   e: 0.0,
+  showXYGrid: true,
+  showXZGrid: true
 };
 
 const graphMaterial = new THREE.LineBasicMaterial({ color: 0x00ffff, linewidth: 2 }); // Cyan
@@ -395,6 +427,12 @@ updateGraph();
 // --- GUI ---
 const gui = new GUI();
 gui.add(params, 'e', 0, 0.99).name('Smoothness (e)').onChange(updateGraph);
+gui.add(params, 'showXYGrid').name('Show XY Grid').onChange((v: boolean) => {
+    gridHelper.visible = v;
+});
+gui.add(params, 'showXZGrid').name('Show XZ Grid').onChange((v: boolean) => {
+    criticalGridHelper.visible = v;
+});
 
 // --- Animation Loop ---
 function animate() {
