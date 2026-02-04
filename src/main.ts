@@ -436,8 +436,48 @@ function updateGraph() {
   graphLine.geometry.attributes.position.needsUpdate = true;
 }
 
-// Initial Update
-updateGraph();
+// --- Intersection Visualization ---
+const intersectionMarkerGeometry = new THREE.SphereGeometry(0.1, 16, 16);
+const intersectionMarkerMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+const intersectionMarker = new THREE.Mesh(intersectionMarkerGeometry, intersectionMarkerMaterial);
+scene.add(intersectionMarker);
+
+const intersectionLabelDiv = document.createElement('div');
+intersectionLabelDiv.className = 'axis-label';
+intersectionLabelDiv.style.color = 'white';
+// intersectionLabelDiv.style.fontSize = '12px'; // Optional
+const intersectionLabel = new CSS2DObject(intersectionLabelDiv);
+scene.add(intersectionLabel);
+
+let intersectionConnector: THREE.Mesh | null = null;
+
+function updateIntersection(y: number) {
+    const z = zeta(y);
+    // Plotting logic matches the curve: x = 0.5 + Re(zeta), y = y (Im(s)), z = Im(zeta)
+    const point = new THREE.Vector3(0.5 + z.re, y, z.im);
+    
+    intersectionMarker.position.copy(point);
+    
+    intersectionLabelDiv.textContent = `ζ = ${z.re.toFixed(2)} + ${z.im.toFixed(2)}i`;
+    
+    // Offset label to the right side
+    const labelPos = point.clone().add(new THREE.Vector3(15, 5, 0));
+    intersectionLabel.position.copy(labelPos);
+    
+    // Update Connector
+    if (intersectionConnector) {
+        scene.remove(intersectionConnector);
+        intersectionConnector.geometry.dispose();
+        (intersectionConnector.material as THREE.Material).dispose(); // Clean up material as createConnector makes new one
+    }
+    // Reuse createConnector but with white color
+    intersectionConnector = createConnector(labelPos, point, 0.02, 0xffffff);
+    scene.add(intersectionConnector);
+}
+
+// Initial update
+updateIntersection(params.xzGridY);
+
 
 // --- GUI ---
 const gui = new GUI({ width: 600 });
@@ -450,6 +490,7 @@ gui.add(params, 'showXZGrid').name('Show XZ Grid').onChange((v: boolean) => {
 });
 gui.add(params, 'xzGridY', -60, 60, 0.01).name('XZ Grid Y').onChange((v: number) => {
     criticalGridHelper.position.y = v;
+    updateIntersection(v);
 });
 gui.add(params, 'showYZGrid').name('Show YZ Grid (Re=0)').onChange((v: boolean) => {
     imaginaryGridHelper.visible = v;
