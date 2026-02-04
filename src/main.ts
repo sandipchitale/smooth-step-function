@@ -476,6 +476,7 @@ function updateIntersection(y: number) {
 }
 
 // Initial update
+updateGraph();
 updateIntersection(params.xzGridY);
 
 
