@@ -320,6 +320,7 @@ const params = {
   showYZGrid: false,
   showCriticalStrip: true,
   xzGridY: 0,
+  originShift: 0.5, // Re-origin of the output frame: 0 = Im axis, ½ = critical line
   // Explicit-formula reconstruction of the prime staircase from the zeros.
   // Hidden by default; this is an extra "if you're curious" layer.
   piZeros: 10,            // zeros used in the yellow π(x) reconstruction (pairs with cyan)
@@ -445,17 +446,28 @@ function zeta(y: number): Complex {
 const zetaMaterial = new THREE.LineBasicMaterial({ color: 0xff00ff, linewidth: 2 }); // Magenta
 const zetaGeometry = new THREE.BufferGeometry();
 const zetaPoints: number[] = [];
+const zetaRe: number[] = []; // cached Re(ζ) per sample; x = originShift + Re(ζ)
 
 // Range -50 to 50
 for (let y = -50; y <= 50; y += 0.01) {
     const z = zeta(y);
-    // Plot at (0.5 + Re(zeta), y, Im(zeta))
+    // Plot at (originShift + Re(zeta), y, Im(zeta))
     // This wraps the "value" around the critical line in 3D space
-    zetaPoints.push(0.5 + z.re, y, z.im);
+    zetaRe.push(z.re);
+    zetaPoints.push(params.originShift + z.re, y, z.im);
 }
 zetaGeometry.setAttribute('position', new THREE.Float32BufferAttribute(zetaPoints, 3));
 const zetaLine = new THREE.Line(zetaGeometry, zetaMaterial);
 scene.add(zetaLine);
+
+// Re-position the ribbon when the origin shift changes (cheap: x only, no zeta recompute).
+function updateZetaShift() {
+    const pos = zetaGeometry.attributes.position.array as Float32Array;
+    for (let i = 0; i < zetaRe.length; i++) {
+        pos[i * 3] = params.originShift + zetaRe[i];
+    }
+    zetaGeometry.attributes.position.needsUpdate = true;
+}
 
 
 
@@ -720,8 +732,8 @@ let intersectionConnector: THREE.Mesh | null = null;
 
 function updateIntersection(y: number) {
     const z = zeta(y);
-    // Plotting logic matches the curve: x = 0.5 + Re(zeta), y = y (Im(s)), z = Im(zeta)
-    const point = new THREE.Vector3(0.5 + z.re, y, z.im);
+    // Plotting logic matches the curve: x = originShift + Re(zeta), y = y (Im(s)), z = Im(zeta)
+    const point = new THREE.Vector3(params.originShift + z.re, y, z.im);
     
     intersectionMarker.position.copy(point);
     
@@ -794,6 +806,11 @@ gui.add(params, 'xzGridY', -60, 60, 0.01).name('XZ Grid Y').onChange((v: number)
     criticalGridHelper.position.y = v;
     outputPlaneLabel.position.y = v;
     updateIntersection(v);
+});
+gui.add(params, 'originShift', 0, 1, 0.01).name('Origin shift (0 = Im axis, ½ = critical line)').onChange((v: number) => {
+    updateZetaShift();
+    criticalGridHelper.position.x = v; // output-frame origin (center cross) tracks the shift
+    updateIntersection(params.xzGridY);
 });
 gui.add(params, 'showYZGrid').name('Show YZ Grid (Re=0)').onChange((v: boolean) => {
     imaginaryGridHelper.visible = v;

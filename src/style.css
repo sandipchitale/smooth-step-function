@@ -177,6 +177,13 @@ h1 {
   font-size: 0.8rem;
 }
 .payoff-red { background: rgba(255, 48, 48, 0.1); }
+.try {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  background: rgba(0, 255, 136, 0.1);
+  border-radius: 6px;
+  font-size: 0.8rem;
+}
 
 /* 3D Labels */
 .axis-label {
