@@ -21,7 +21,7 @@
           <li><span class="color-box white"></span> Primes &amp; zeros on the real axis / critical line</li>
           <li><span class="color-box cyan"></span> Prime count&nbsp;π(x) — smoothstep staircase</li>
           <li><span class="color-box magenta"></span> ζ(½&nbsp;+&nbsp;it) along the critical line</li>
-          <li><span class="color-box red"></span> ζ value at the current XZ-grid height</li>
+          <li><span class="color-box red"></span> ζ at the current height — marker + radial line (length =&nbsp;|ζ|)</li>
           <li><span class="color-box yellow"></span> π(x) rebuilt from the zeros (Riemann)</li>
           <li><span class="color-box green"></span> ψ(x) rebuilt from the zeros</li>
           <li><span class="color-box orange"></span> True ψ(x) — Chebyshev, log&nbsp;p steps</li>
@@ -43,8 +43,11 @@
             <b>X = Re(ζ)</b>, <b>Z = Im(ζ)</b>, anchored on the critical line.
             The red marker reads off ζ at that height.</dd>
 
-          <dt class="g-yz">YZ plane <span>(Re = 0)</span></dt>
-          <dd>The imaginary axis — the <b>number-line origin</b> plane.</dd>
+          <dt class="g-yz">YZ plane <span>(output-frame origin)</span></dt>
+          <dd>The <b>origin plane of the ζ-value frame</b>. Its grey vertical centre line is
+            the <b>output-frame t-axis</b> — the foot the radial line drops onto.
+            It slides with <b>“Origin&nbsp;shift”</b>; at&nbsp;½ it sits on the critical line,
+            at&nbsp;0 on the imaginary axis (Re&nbsp;=&nbsp;0).</dd>
         </dl>
       </section>
 
@@ -56,9 +59,13 @@
         <p>The <span class="color-box red"></span><b>red marker</b> rides the magenta ribbon and
           reads off the value <code>ζ(½&nbsp;+&nbsp;it)</code> at that height — the label shows
           the complex number.</p>
-        <p class="payoff payoff-red">Sweep upward and watch the value spiral. Whenever the marker
-          falls back onto the critical line (value&nbsp;→&nbsp;0) you are sitting on a
-          <b>non-trivial zero</b>. At <i>t</i>&nbsp;=&nbsp;0 it reads the real value
+        <p>A <span class="color-box red"></span><b>radial line</b> runs from the marker straight to
+          the output-frame axis. It is the value drawn as a <b>phasor</b>: its length is
+          <code>|ζ|</code> and its direction is <code>arg&nbsp;ζ</code>. Sweep <i>t</i> and it
+          rotates and pulses.</p>
+        <p class="payoff payoff-red">Whenever the radial line shrinks to nothing — the marker
+          touching the axis, <code>|ζ|&nbsp;→&nbsp;0</code> — you are sitting on a
+          <b>non-trivial zero</b>. At <i>t</i>&nbsp;=&nbsp;0 the marker reads the real value
           ζ(½)&nbsp;≈&nbsp;−1.46.</p>
       </section>
 

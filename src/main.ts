@@ -844,7 +844,7 @@ gui.add(params, 'originShift', 0, 1, 0.01).name('Origin shift (0 = Im axis, ½ =
     yzAxisLine.position.x = v;          // YZ vertical axis slides with the shift too
     updateIntersection(params.xzGridY);
 });
-gui.add(params, 'showYZGrid').name('Show YZ Grid (Re=0)').onChange((v: boolean) => {
+gui.add(params, 'showYZGrid').name('Show YZ Grid (output origin)').onChange((v: boolean) => {
     imaginaryGridHelper.visible = v;
     yzAxisLine.visible = v; // vertical axis shows with the YZ grid
 });
