@@ -91,9 +91,11 @@ criticalGridHelper.position.set(0.5, 0, 0);
 scene.add(criticalGridHelper);
 
 // YZ Grid (Passing through Imaginary Axis, X=0)
-const imaginaryGridHelper = new THREE.GridHelper(120, 240, 0x444455, 0x1a1a2e);
+// Uniform color (no emphasized center axis) — both center and grid lines match.
+const imaginaryGridHelper = new THREE.GridHelper(120, 240, 0x1a1a2e, 0x1a1a2e);
 imaginaryGridHelper.rotation.z = Math.PI / 2; // Rotate 90 deg around Z to align with YZ plane
 imaginaryGridHelper.position.set(0, 0, 0);
+imaginaryGridHelper.visible = false; // hidden by default (matches params.showYZGrid)
 scene.add(imaginaryGridHelper);
 
 // Replace multi-colored AxesHelper with simple Gray axes
@@ -315,7 +317,7 @@ const params = {
   e: 0.0,
   showXYGrid: true,
   showXZGrid: true,
-  showYZGrid: true,
+  showYZGrid: false,
   showCriticalStrip: true,
   xzGridY: 0,
   // Explicit-formula reconstruction of the prime staircase from the zeros.
@@ -759,6 +761,17 @@ applyExplicitFormulaVisibility(); // start hidden
 // formula group, so it has its own independent toggle.
 piApproxLine.visible = params.showPiApprox;
 
+// --- Plane identity labels (input vs output) ---
+// Color-matched to the sidebar grid key: XY = cyan (input s-plane),
+// XZ = yellow (output ζ-plane). The output label rides the movable XZ floor.
+const inputPlaneLabel = createLabel('input  s-plane', 45, 50, 0);
+inputPlaneLabel.element.style.color = '#00ffff';
+scene.add(inputPlaneLabel);
+
+const outputPlaneLabel = createLabel('output  ζ-plane', 40, params.xzGridY, 40);
+outputPlaneLabel.element.style.color = '#ffff00';
+scene.add(outputPlaneLabel);
+
 
 // --- GUI ---
 const gui = new GUI({ width: 600 });
@@ -771,12 +784,15 @@ gui.add(params, 'piZeros', 0, nontrivialZerosImag.length, 1)
     .name('  └ # zeros (π reconstruction)').onChange(updatePiApprox);
 gui.add(params, 'showXYGrid').name('Show XY Grid').onChange((v: boolean) => {
     gridHelper.visible = v;
+    inputPlaneLabel.visible = v;
 });
 gui.add(params, 'showXZGrid').name('Show XZ Grid').onChange((v: boolean) => {
     criticalGridHelper.visible = v;
+    outputPlaneLabel.visible = v;
 });
 gui.add(params, 'xzGridY', -60, 60, 0.01).name('XZ Grid Y').onChange((v: number) => {
     criticalGridHelper.position.y = v;
+    outputPlaneLabel.position.y = v;
     updateIntersection(v);
 });
 gui.add(params, 'showYZGrid').name('Show YZ Grid (Re=0)').onChange((v: boolean) => {
