@@ -316,7 +316,16 @@ const params = {
   showXYGrid: true,
   showXZGrid: true,
   showYZGrid: true,
-  xzGridY: 0
+  xzGridY: 0,
+  // Explicit-formula reconstruction of the prime staircase from the zeros.
+  // Hidden by default; this is an extra "if you're curious" layer.
+  piZeros: 10,            // zeros used in the yellow π(x) reconstruction (pairs with cyan)
+  showPiApprox: false,    // off by default; independent top-level toggle
+  // The ψ-based "explicit formula" group below is the extra curiosity layer.
+  showExplicitFormula: false,
+  psiZeros: 10,           // zeros used in the green ψ(x) reconstruction
+  showPsiTrue: true,
+  showPsiApprox: true
 };
 
 const graphMaterial = new THREE.LineBasicMaterial({ color: 0x00ffff, linewidth: 2 }); // Cyan
@@ -362,6 +371,10 @@ class Complex {
 
   scale(k: number): Complex {
     return new Complex(this.re * k, this.im * k);
+  }
+
+  abs(): number {
+    return Math.hypot(this.re, this.im);
   }
 }
 
@@ -490,6 +503,203 @@ function updateGraph() {
   graphLine.geometry.attributes.position.needsUpdate = true;
 }
 
+// ============================================================================
+// --- Explicit Formula: building the staircase FROM the zeros on the line ---
+// ============================================================================
+// Riemann/von Mangoldt explicit formula for the Chebyshev function psi(x):
+//
+//   psi(x) = x  -  sum over zeros rho of  x^rho / rho  -  log(2*pi)  -  1/2 log(1 - x^-2)
+//
+// psi(x) = sum_{p^k <= x} log p  is the prime "staircase" weighted by log p,
+// jumping at every prime power. Pairing each zero rho = 1/2 + i*gamma with its
+// conjugate 1/2 - i*gamma collapses x^rho/rho into a real oscillation:
+//
+//   2 Re(x^rho / rho) = sqrt(x) * (cos(gamma ln x) + 2*gamma sin(gamma ln x)) / (1/4 + gamma^2)
+//
+// So each zero on the critical line contributes one decaying wave; summing more
+// zeros makes the smooth curve ring into the exact staircase. The same gamma
+// values plotted vertically on the line (Im(s)) are what generate this curve.
+
+// Imaginary parts (gamma) of the first 50 nontrivial zeros (standard tabulated).
+const nontrivialZerosImag = [
+  14.134725142, 21.022039639, 25.010857580, 30.424876126, 32.935061588,
+  37.586178159, 40.918719012, 43.327073281, 48.005150881, 49.773832478,
+  52.970321478, 56.446247697, 59.347044003, 60.831778525, 65.112544048,
+  67.079810529, 69.546401711, 72.067157674, 75.704690699, 77.144840069,
+  79.337375020, 82.910380854, 84.735492981, 87.425274613, 88.809111208,
+  92.491899271, 94.651344041, 95.870634228, 98.831194218, 101.317851006,
+  103.725538040, 105.446623052, 107.168611184, 111.029535543, 111.874659177,
+  114.320220915, 116.226680321, 118.790782866, 121.370125002, 122.946829294,
+  124.256818554, 127.516683880, 129.578704200, 131.087688531, 133.497737203,
+  134.756509753, 138.116042055, 139.736208952, 141.123707404, 143.111845808,
+];
+
+// True Chebyshev psi(x): cumulative log p over all prime powers p^k <= x.
+const primePowers: { value: number; logP: number }[] = [];
+for (const p of getPrimesUpTo(MAX_X)) {
+  const logP = Math.log(p);
+  for (let pk = p; pk <= MAX_X; pk *= p) {
+    primePowers.push({ value: pk, logP });
+  }
+}
+primePowers.sort((a, b) => a.value - b.value);
+
+function psiTrue(x: number): number {
+  let sum = 0;
+  for (const { value, logP } of primePowers) {
+    if (value <= x) sum += logP;
+    else break;
+  }
+  return sum;
+}
+
+// Explicit-formula approximation of psi(x) using the first N zeros.
+function psiApprox(x: number, N: number): number {
+  if (x <= 1.05) return 0; // formula has a singularity at x = 1; psi(x)=0 below 2 anyway
+  const lnx = Math.log(x);
+  const sqrtx = Math.sqrt(x);
+  let osc = 0;
+  for (let n = 0; n < N; n++) {
+    const g = nontrivialZerosImag[n];
+    const theta = g * lnx;
+    osc += (Math.cos(theta) + 2 * g * Math.sin(theta)) / (0.25 + g * g);
+  }
+  return x - sqrtx * osc - Math.log(2 * Math.PI) - 0.5 * Math.log(1 - 1 / (x * x));
+}
+
+// True psi staircase (orange), computed once.
+const psiTrueMaterial = new THREE.LineBasicMaterial({ color: 0xffaa00, linewidth: 2 });
+const psiTrueGeometry = new THREE.BufferGeometry();
+const psiTruePositions = new Float32Array(STEPS * 3);
+for (let i = 0; i < STEPS; i++) {
+  const x = (i / (STEPS - 1)) * MAX_X;
+  psiTruePositions[i * 3] = x;
+  psiTruePositions[i * 3 + 1] = psiTrue(x);
+  psiTruePositions[i * 3 + 2] = 0;
+}
+psiTrueGeometry.setAttribute('position', new THREE.BufferAttribute(psiTruePositions, 3));
+const psiTrueLine = new THREE.Line(psiTrueGeometry, psiTrueMaterial);
+scene.add(psiTrueLine);
+
+// Explicit-formula reconstruction (green), updated as the zero count changes.
+const psiApproxMaterial = new THREE.LineBasicMaterial({ color: 0x00ff88, linewidth: 2 });
+const psiApproxGeometry = new THREE.BufferGeometry();
+psiApproxGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(STEPS * 3), 3));
+const psiApproxLine = new THREE.Line(psiApproxGeometry, psiApproxMaterial);
+scene.add(psiApproxLine);
+
+function updatePsiApprox() {
+  const N = Math.min(params.psiZeros, nontrivialZerosImag.length);
+  const pos = psiApproxLine.geometry.attributes.position.array as Float32Array;
+  for (let i = 0; i < STEPS; i++) {
+    const x = (i / (STEPS - 1)) * MAX_X;
+    pos[i * 3] = x;
+    pos[i * 3 + 1] = psiApprox(x, N);
+    pos[i * 3 + 2] = 0;
+  }
+  psiApproxLine.geometry.attributes.position.needsUpdate = true;
+}
+
+// ============================================================================
+// --- Riemann's formula: the HEIGHT-1 prime count pi(x) from the zeros ---
+// ============================================================================
+// psi(x) jumps by log p; the actual counting function pi(x) jumps by exactly 1
+// at each prime. Reconstructing pi(x) from the zeros is Riemann's formula:
+//
+//   pi(x) ~ R(x) - sum over zeros rho of R(x^rho)
+//
+// where R(w) = sum_{n>=1} mu(n)/n * li(w^(1/n))  is Riemann's R function, and
+// li(w) = Ei(ln w) is the logarithmic integral. For w = x^rho this needs the
+// exponential integral of a COMPLEX argument, Ei(rho * ln x). Pairing rho with
+// its conjugate makes each zero's contribution real: 2 * Re(li(x^rho)).
+
+const EULER = 0.5772156649015329; // Euler-Mascheroni constant
+
+function cExp(z: Complex): Complex {
+  const e = Math.exp(z.re);
+  return new Complex(e * Math.cos(z.im), e * Math.sin(z.im));
+}
+
+function cLog(z: Complex): Complex {
+  return new Complex(Math.log(z.abs()), Math.atan2(z.im, z.re));
+}
+
+// Complex exponential integral Ei(z).
+// Power series for small |z|; asymptotic series (optimal truncation) for large.
+function Ei(z: Complex): Complex {
+  if (z.abs() < 20) {
+    // Ei(z) = gamma + ln(z) + sum_{k>=1} z^k / (k * k!)
+    let sum = cLog(z).add(new Complex(EULER, 0));
+    let zk = new Complex(1, 0); // running z^k / k!
+    for (let k = 1; k <= 400; k++) {
+      zk = zk.mul(z).scale(1 / k);
+      const add = zk.scale(1 / k);
+      sum = sum.add(add);
+      if (add.abs() < 1e-16 * sum.abs() && k > z.abs()) break;
+    }
+    return sum;
+  }
+  // Ei(z) ~ (e^z / z) * sum_{k>=0} k! / z^k, truncated at the smallest term.
+  const pref = cExp(z).div(z);
+  let sum = new Complex(0, 0);
+  let term = new Complex(1, 0); // k! / z^k
+  let prevMag = Infinity;
+  for (let k = 0; k <= 400; k++) {
+    const mag = term.abs();
+    if (mag > prevMag) break; // asymptotic series starts diverging -> stop
+    sum = sum.add(term);
+    prevMag = mag;
+    term = term.scale(k + 1).div(z);
+  }
+  return pref.mul(sum);
+}
+
+// Mobius function for the small n needed here (n <= log2(MAX_X) ~ 5).
+const mobius = [0, 1, -1, -1, 0, -1, 1, -1, 0, 0, 1];
+
+// Riemann's reconstruction of pi(x) using the first N zeros.
+function piRiemann(x: number, N: number): number {
+  if (x < 2) return 0;
+  const lnx = Math.log(x);
+  const nMax = Math.floor(lnx / Math.LN2); // include n only while x^(1/n) >= 2
+  let total = 0;
+  for (let n = 1; n <= nMax; n++) {
+    const mu = mobius[n];
+    if (mu === 0) continue;
+    const Ln = lnx / n; // ln(x^(1/n))
+    let term = Ei(new Complex(Ln, 0)).re; // li(x^(1/n)) = main term R(x)
+    let zsum = 0;
+    for (let k = 0; k < N; k++) {
+      const g = nontrivialZerosImag[k];
+      // li(x^(rho/n)) = Ei(rho * Ln), rho = 1/2 + i*g; pair with conjugate -> 2 Re
+      zsum += 2 * Ei(new Complex(Ln * 0.5, g * Ln)).re;
+    }
+    term -= zsum;
+    total += (mu / n) * term;
+  }
+  return total;
+}
+
+// pi(x) reconstruction curve (yellow). Ei is expensive, so use a coarser grid.
+const PI_STEPS = 3000;
+const piApproxMaterial = new THREE.LineBasicMaterial({ color: 0xffff00, linewidth: 2 });
+const piApproxGeometry = new THREE.BufferGeometry();
+piApproxGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(PI_STEPS * 3), 3));
+const piApproxLine = new THREE.Line(piApproxGeometry, piApproxMaterial);
+scene.add(piApproxLine);
+
+function updatePiApprox() {
+  const N = Math.min(params.piZeros, nontrivialZerosImag.length);
+  const pos = piApproxLine.geometry.attributes.position.array as Float32Array;
+  for (let i = 0; i < PI_STEPS; i++) {
+    const x = (i / (PI_STEPS - 1)) * MAX_X;
+    pos[i * 3] = x;
+    pos[i * 3 + 1] = piRiemann(x, N);
+    pos[i * 3 + 2] = 0;
+  }
+  piApproxLine.geometry.attributes.position.needsUpdate = true;
+}
+
 // --- Intersection Visualization ---
 const intersectionMarkerGeometry = new THREE.SphereGeometry(0.1, 16, 16);
 const intersectionMarkerMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
@@ -531,12 +741,33 @@ function updateIntersection(y: number) {
 
 // Initial update
 updateGraph();
+updatePsiApprox();
+updatePiApprox();
 updateIntersection(params.xzGridY);
+
+// Master gate: each explicit-formula curve is visible only when the whole
+// group is enabled AND its individual toggle is on.
+function applyExplicitFormulaVisibility() {
+  const on = params.showExplicitFormula;
+  psiTrueLine.visible = on && params.showPsiTrue;
+  psiApproxLine.visible = on && params.showPsiApprox;
+}
+applyExplicitFormulaVisibility(); // start hidden
+
+// The pi(x) reconstruction goes with the cyan prime-count, NOT the explicit-
+// formula group, so it has its own independent toggle.
+piApproxLine.visible = params.showPiApprox;
 
 
 // --- GUI ---
 const gui = new GUI({ width: 600 });
 gui.add(params, 'e', 0, 0.99).name('Smoothness (e)').onChange(updateGraph);
+// pi(x) reconstructed from the zeros — pairs with the cyan prime-count staircase.
+gui.add(params, 'showPiApprox').name('π(x) from zeros (yellow)').onChange((v: boolean) => {
+    piApproxLine.visible = v;
+});
+gui.add(params, 'piZeros', 0, nontrivialZerosImag.length, 1)
+    .name('  └ # zeros (π reconstruction)').onChange(updatePiApprox);
 gui.add(params, 'showXYGrid').name('Show XY Grid').onChange((v: boolean) => {
     gridHelper.visible = v;
 });
@@ -550,6 +781,18 @@ gui.add(params, 'xzGridY', -60, 60, 0.01).name('XZ Grid Y').onChange((v: number)
 gui.add(params, 'showYZGrid').name('Show YZ Grid (Re=0)').onChange((v: boolean) => {
     imaginaryGridHelper.visible = v;
 });
+
+// Explicit-formula reconstruction of the staircase from the zeros
+const efFolder = gui.addFolder('Explicit Formula — staircases from zeros');
+efFolder.add(params, 'showExplicitFormula').name('Show explicit-formula curves')
+    .onChange(applyExplicitFormulaVisibility);
+efFolder.add(params, 'showPsiApprox').name('ψ(x) from zeros (green)')
+    .onChange(applyExplicitFormulaVisibility);
+efFolder.add(params, 'psiZeros', 0, nontrivialZerosImag.length, 1)
+    .name('  └ # zeros (ψ / green)').onChange(updatePsiApprox);
+efFolder.add(params, 'showPsiTrue').name('True ψ(x), log-p steps (orange)')
+    .onChange(applyExplicitFormulaVisibility);
+efFolder.close();
 
 // --- Animation Loop ---
 function animate() {
