@@ -332,6 +332,7 @@ const params = {
   showYZGrid: false,
   showCriticalStrip: true,
   xzGridY: 0,
+  showValueLine: true, // the faint connector from the ζ-value label to the red marker
   originShift: 0.5, // Re-origin of the output frame: 0 = Im axis, ½ = critical line
   // Explicit-formula reconstruction of the prime staircase from the zeros.
   // Hidden by default; this is an extra "if you're curious" layer.
@@ -779,8 +780,9 @@ function updateIntersection(y: number) {
         intersectionConnector.geometry.dispose();
         (intersectionConnector.material as THREE.Material).dispose(); // Clean up material as createConnector makes new one
     }
-    // Reuse createConnector but with white color
-    intersectionConnector = createConnector(labelPos, point, 0.02, 0xffffff);
+    // Faint connector, same color as the non-axis grid lines (0x1a1a2e); toggleable.
+    intersectionConnector = createConnector(labelPos, point, 0.02, 0x1a1a2e);
+    intersectionConnector.visible = params.showValueLine;
     scene.add(intersectionConnector);
 }
 
@@ -836,6 +838,10 @@ gui.add(params, 'xzGridY', -60, 60, 0.01).name('XZ Grid Y').onChange((v: number)
     criticalGridHelper.position.y = v;
     outputPlaneLabel.position.y = v;
     updateIntersection(v);
+});
+gui.add(params, 'showValueLine').name('Show ζ-value label').onChange((v: boolean) => {
+    if (intersectionConnector) intersectionConnector.visible = v;
+    intersectionLabel.visible = v; // label and its connector toggle together
 });
 gui.add(params, 'originShift', 0, 1, 0.01).name('Origin shift (0 = Im axis, ½ = critical line)').onChange((v: number) => {
     updateZetaShift();
