@@ -98,6 +98,18 @@ imaginaryGridHelper.position.set(0.5, 0, 0); // matches params.originShift; slid
 imaginaryGridHelper.visible = false; // hidden by default (matches params.showYZGrid)
 scene.add(imaginaryGridHelper);
 
+// Vertical axis of the YZ plane (the t-axis at the output-frame origin).
+// Emphasized like the other axes; slides with originShift and shows with the YZ grid.
+const yzAxisMaterial = new THREE.LineBasicMaterial({ color: 0x666666 }); // same gray as the other axes
+const yzAxisGeometry = new THREE.BufferGeometry().setFromPoints([
+  new THREE.Vector3(0, -60, 0),
+  new THREE.Vector3(0, 60, 0),
+]);
+const yzAxisLine = new THREE.Line(yzAxisGeometry, yzAxisMaterial);
+yzAxisLine.position.x = 0.5; // matches params.originShift; slides with the shift
+yzAxisLine.visible = false;  // shows with the YZ grid (matches params.showYZGrid)
+scene.add(yzAxisLine);
+
 // Replace multi-colored AxesHelper with simple Gray axes
 const axesMaterial = new THREE.LineBasicMaterial({ color: 0x666666 }); // Gray color
 const axesGeometry = new THREE.BufferGeometry().setFromPoints([
@@ -729,13 +741,31 @@ const intersectionLabel = new CSS2DObject(intersectionLabelDiv);
 scene.add(intersectionLabel);
 
 let intersectionConnector: THREE.Mesh | null = null;
+// Radial line: perpendicular from the red dot to the YZ vertical axis.
+// Foot at (originShift, t, 0); length = |ζ(½+it)|. Always visible with the marker.
+let radialLine: THREE.Mesh | null = null;
 
 function updateIntersection(y: number) {
     const z = zeta(y);
     // Plotting logic matches the curve: x = originShift + Re(zeta), y = y (Im(s)), z = Im(zeta)
     const point = new THREE.Vector3(params.originShift + z.re, y, z.im);
-    
+
     intersectionMarker.position.copy(point);
+
+    // Radial line: from the foot on the YZ vertical axis (originShift, y, 0) to the red dot.
+    const foot = new THREE.Vector3(params.originShift, y, 0);
+    if (radialLine) {
+        scene.remove(radialLine);
+        radialLine.geometry.dispose();
+        (radialLine.material as THREE.Material).dispose();
+    }
+    if (foot.distanceTo(point) > 1e-4) {
+        radialLine = createConnector(foot, point, 0.04, 0xff5555);
+        (radialLine.material as THREE.MeshBasicMaterial).opacity = 0.9;
+        scene.add(radialLine);
+    } else {
+        radialLine = null; // |ζ| ≈ 0: marker sits on the axis, no radius to draw
+    }
     
     intersectionLabelDiv.textContent = `ζ = ${z.re.toFixed(2)} + ${z.im.toFixed(2)}i`;
     
@@ -811,10 +841,12 @@ gui.add(params, 'originShift', 0, 1, 0.01).name('Origin shift (0 = Im axis, ½ =
     updateZetaShift();
     criticalGridHelper.position.x = v; // output-frame origin (center cross) tracks the shift
     imaginaryGridHelper.position.x = v; // YZ plane slides with the shift too
+    yzAxisLine.position.x = v;          // YZ vertical axis slides with the shift too
     updateIntersection(params.xzGridY);
 });
 gui.add(params, 'showYZGrid').name('Show YZ Grid (Re=0)').onChange((v: boolean) => {
     imaginaryGridHelper.visible = v;
+    yzAxisLine.visible = v; // vertical axis shows with the YZ grid
 });
 gui.add(params, 'showCriticalStrip').name('Show Critical Strip').onChange((v: boolean) => {
     criticalStrip.visible = v;
