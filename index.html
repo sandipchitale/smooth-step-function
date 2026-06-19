@@ -5,8 +5,8 @@
     <link rel="icon" type="image/svg+xml" href="/smooth-step-function/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>smooth-step-function</title>
-    <script type="module" crossorigin src="/smooth-step-function/assets/index-9IWxJ6_q.js"></script>
-    <link rel="stylesheet" crossorigin href="/smooth-step-function/assets/index-DOQwMBgI.css">
+    <script type="module" crossorigin src="/smooth-step-function/assets/index-B4S3lb_F.js"></script>
+    <link rel="stylesheet" crossorigin href="/smooth-step-function/assets/index-CfpCE9b2.css">
   </head>
   <body>
     <button id="sidebar-toggle" aria-label="Toggle legend" title="Show / hide legend">‹</button>
@@ -17,56 +17,23 @@
       non-trivial zeros of&nbsp;ζ(s) on the critical line.</p>
 
       <!-- Colour legend -->
-      <section class="card accent-cyan">
-        <h2>Colour key</h2>
+      <details class="card accent-cyan" open>
+        <summary>Colour key</summary>
         <ul class="legend-list">
           <li><span class="color-box white"></span> Primes &amp; zeros on the real axis / critical line</li>
           <li><span class="color-box cyan"></span> Prime count&nbsp;π(x) — smoothstep staircase</li>
-          <li><span class="color-box magenta"></span> ζ(½&nbsp;+&nbsp;it) along the critical line</li>
-          <li><span class="color-box red"></span> ζ value at the current XZ-grid height</li>
-          <li><span class="color-box yellow"></span> π(x) rebuilt from the zeros (Riemann)</li>
-          <li><span class="color-box green"></span> ψ(x) rebuilt from the zeros</li>
+          <li><span class="color-box magenta"></span> ζ(½&nbsp;+&nbsp;it) ribbon &amp; its flattened phasor trail</li>
+          <li><span class="color-box red"></span> ζ at the current height — marker + radial line (length =&nbsp;|ζ|)</li>
+          <li><span class="color-box yellow"></span> π(x) rebuilt from the zeros (Riemann) — label: N &amp; peak ringing</li>
+          <li><span class="color-box green"></span> ψ(x) rebuilt from the zeros — label: N &amp; peak ringing</li>
           <li><span class="color-box orange"></span> True ψ(x) — Chebyshev, log&nbsp;p steps</li>
           <li><span class="color-box gray"></span> Critical strip, axes &amp; grids</li>
         </ul>
-      </section>
-
-      <!-- Grids -->
-      <section class="card accent-green">
-        <h2>The three grids</h2>
-        <dl class="grid-list">
-          <dt class="g-xy">XY plane <span>(Z = 0)</span></dt>
-          <dd>The complex s-plane and the counting plane.
-            <b>X = Re(s)</b>, <b>Y = Im(s) = t</b> (also the π-count height).
-            Holds the primes, the staircase, and the zeros on the critical line.</dd>
-
-          <dt class="g-xz">XZ plane <span>(movable floor)</span></dt>
-          <dd>The <b>output-value plane</b> at height <i>t</i> = “XZ&nbsp;Grid&nbsp;Y”.
-            <b>X = Re(ζ)</b>, <b>Z = Im(ζ)</b>, anchored on the critical line.
-            The red marker reads off ζ at that height.</dd>
-
-          <dt class="g-yz">YZ plane <span>(Re = 0)</span></dt>
-          <dd>The imaginary axis — the <b>number-line origin</b> plane.</dd>
-        </dl>
-      </section>
-
-      <!-- Sweeping the XZ plane -->
-      <section class="card accent-red">
-        <h2>● Sweeping the XZ plane</h2>
-        <p>Drag <b>“XZ&nbsp;Grid&nbsp;Y”</b> to raise or lower the floor to a height
-          <i>t</i>&nbsp;=&nbsp;Im(s) on the critical line.</p>
-        <p>The <span class="color-box red"></span><b>red marker</b> rides the magenta ribbon and
-          reads off the value <code>ζ(½&nbsp;+&nbsp;it)</code> at that height — the label shows
-          the complex number.</p>
-        <p class="payoff payoff-red">Sweep upward and watch the value spiral. Whenever the marker
-          falls back onto the critical line (value&nbsp;→&nbsp;0) you are sitting on a
-          <b>non-trivial zero</b>. At <i>t</i>&nbsp;=&nbsp;0 it reads the real value
-          ζ(½)&nbsp;≈&nbsp;−1.46.</p>
-      </section>
+      </details>
 
       <!-- The origin shift -->
-      <section class="card accent-magenta">
-        <h2>★ The ½ origin shift</h2>
+      <details class="card accent-magenta" open>
+        <summary>★ The ½ origin shift</summary>
         <p>One shared real axis, read with <b>two origins</b>:</p>
         <ul class="shift-list">
           <li><span class="pin pin-0">0</span> origin of the <b>number line</b> (primes, counting)</li>
@@ -78,8 +45,52 @@
           the magenta ribbon touches the critical line exactly when ζ&nbsp;=&nbsp;0.
           Zeros are simply where the value-ribbon returns to the line.</p>
         <p class="try">Try it: drag <b>“Origin shift”</b> to slide the output frame 0&nbsp;→&nbsp;1 and
-          watch the zeros snap onto the critical line exactly at&nbsp;½.</p>
-      </section>
+          watch the zeros snap onto the critical line exactly at&nbsp;½. The whole output frame
+          (XZ floor, YZ plane and its axis) slides as one rigid unit.</p>
+      </details>
+
+      <!-- Sweeping the XZ plane -->
+      <details class="card accent-red" open>
+        <summary>● Sweeping the XZ plane</summary>
+        <p>Drag <b>“XZ&nbsp;Grid&nbsp;Y”</b> to raise or lower the floor to a height
+          <i>t</i>&nbsp;=&nbsp;Im(s) on the critical line.</p>
+        <p>The <span class="color-box red"></span><b>red marker</b> rides the magenta ribbon and
+          reads off <code>ζ(½&nbsp;+&nbsp;it)</code> at that height — the label shows the value as
+          <code>a&nbsp;+&nbsp;bi</code> together with <code>|ζ|</code> and <code>arg&nbsp;ζ</code>.</p>
+        <p>A <span class="color-box red"></span><b>radial line</b> runs from the marker straight to
+          the output-frame axis. It is the value drawn as a <b>phasor</b>: its length is
+          <code>|ζ|</code> and its direction is <code>arg&nbsp;ζ</code>. Sweep <i>t</i> and it
+          rotates and pulses.</p>
+        <p>The faint <b>phasor trail</b> is the value curve over a window of <i>t</i> flattened
+          into the floor — a flat read on the ribbon's depth (its winding) where perspective is
+          hard. Toggle it with <b>“Show phasor trail”</b> and size it with <b>“trail&nbsp;±&nbsp;window”</b>.</p>
+        <p class="payoff payoff-red">Whenever the radial line shrinks to nothing — the marker
+          touching the axis, <code>|ζ|&nbsp;→&nbsp;0</code> — you are sitting on a
+          <b>non-trivial zero</b>. At <i>t</i>&nbsp;=&nbsp;0 the marker reads the real value
+          ζ(½)&nbsp;≈&nbsp;−1.46.</p>
+      </details>
+
+      <!-- Grids -->
+      <details class="card accent-green" open>
+        <summary>The three grids</summary>
+        <dl class="grid-list">
+          <dt class="g-xy">XY plane <span>(Z = 0)</span></dt>
+          <dd>The complex s-plane and the counting plane.
+            <b>X = Re(s)</b>, <b>Y = Im(s) = t</b> (also the π-count height).
+            Holds the primes, the staircase, and the zeros on the critical line.</dd>
+
+          <dt class="g-xz">XZ plane <span>(movable floor)</span></dt>
+          <dd>The <b>output-value plane</b> at height <i>t</i> = “XZ&nbsp;Grid&nbsp;Y”.
+            <b>X = Re(ζ)</b>, <b>Z = Im(ζ)</b>, anchored on the critical line.
+            The red marker reads off ζ at that height.</dd>
+
+          <dt class="g-yz">YZ plane <span>(output-frame origin)</span></dt>
+          <dd>The <b>origin plane of the ζ-value frame</b>. Its grey vertical centre line is
+            the <b>output-frame t-axis</b> — the foot the radial line drops onto.
+            It slides with <b>“Origin&nbsp;shift”</b>; at&nbsp;½ it sits on the critical line,
+            at&nbsp;0 on the imaginary axis (Re&nbsp;=&nbsp;0).</dd>
+        </dl>
+      </details>
     </aside>
 
     <div id="app"></div>
