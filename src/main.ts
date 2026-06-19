@@ -94,7 +94,7 @@ scene.add(criticalGridHelper);
 // Uniform color (no emphasized center axis) — both center and grid lines match.
 const imaginaryGridHelper = new THREE.GridHelper(120, 240, 0x1a1a2e, 0x1a1a2e);
 imaginaryGridHelper.rotation.z = Math.PI / 2; // Rotate 90 deg around Z to align with YZ plane
-imaginaryGridHelper.position.set(0, 0, 0);
+imaginaryGridHelper.position.set(0.5, 0, 0); // matches params.originShift; slides with the shift
 imaginaryGridHelper.visible = false; // hidden by default (matches params.showYZGrid)
 scene.add(imaginaryGridHelper);
 
@@ -810,6 +810,7 @@ gui.add(params, 'xzGridY', -60, 60, 0.01).name('XZ Grid Y').onChange((v: number)
 gui.add(params, 'originShift', 0, 1, 0.01).name('Origin shift (0 = Im axis, ½ = critical line)').onChange((v: number) => {
     updateZetaShift();
     criticalGridHelper.position.x = v; // output-frame origin (center cross) tracks the shift
+    imaginaryGridHelper.position.x = v; // YZ plane slides with the shift too
     updateIntersection(params.xzGridY);
 });
 gui.add(params, 'showYZGrid').name('Show YZ Grid (Re=0)').onChange((v: boolean) => {
