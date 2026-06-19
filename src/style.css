@@ -115,6 +115,8 @@ h1 {
 .accent-green h2   { color: #00ff88; }
 .accent-magenta { border-left-color: #ff66ff; }
 .accent-magenta h2 { color: #ff66ff; }
+.accent-red     { border-left-color: #ff3030; }
+.accent-red h2     { color: #ff5050; }
 
 .legend-list, .shift-list { list-style: none; margin: 0; padding: 0; }
 .legend-list li, .shift-list li { margin: 6px 0; line-height: 1.35; }
@@ -174,6 +176,7 @@ h1 {
   border-radius: 6px;
   font-size: 0.8rem;
 }
+.payoff-red { background: rgba(255, 48, 48, 0.1); }
 
 /* 3D Labels */
 .axis-label {
