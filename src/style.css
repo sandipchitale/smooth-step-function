@@ -199,6 +199,91 @@ h1 {
   font-size: 0.8rem;
 }
 
+/* Keyboard focus cue for lil-gui sliders made keyboard-operable */
+.kb-slider:focus { outline: 2px solid #00ffff; outline-offset: 1px; }
+
+/* Vertical XZ-Grid-Y slider: a panel directly below the lil-gui panel, right edge */
+#xz-vertical {
+  position: fixed;
+  right: 0;            /* hug the right edge, same as the lil-gui panel */
+  /* top is set in JS to sit just below the lil-gui panel */
+  z-index: 7;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: 130px;
+  box-sizing: border-box;
+  padding: 14px 12px 16px;
+  background: rgba(16, 16, 34, 0.85);
+  border: 1px solid rgba(120, 130, 200, 0.3);
+  border-right: none;
+  border-radius: 0 0 0 10px;
+  backdrop-filter: blur(8px);
+  box-shadow: -2px 2px 12px rgba(0, 0, 0, 0.5);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.8rem;
+}
+#xz-vertical .xz-label { color: #fff6a0; font-weight: 700; letter-spacing: 0.04em; }
+
+/* A thin neutral rail with a plain white round thumb — a position marker,
+   not a filled "level" gauge (so: no coloured progress fill). */
+#xz-vertical input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  writing-mode: vertical-lr;   /* vertical orientation */
+  direction: rtl;              /* top = max (up increases t) */
+  width: 18px;
+  height: 52vh;
+  background: transparent;
+  cursor: pointer;
+}
+#xz-vertical input[type="range"]::-webkit-slider-runnable-track {
+  width: 3px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 2px;
+}
+#xz-vertical input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-left: -6px;           /* centre the dot over the 3px rail */
+  border-radius: 50%;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.5);
+}
+#xz-vertical input[type="range"]::-moz-range-track {
+  width: 3px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 2px;
+}
+#xz-vertical input[type="range"]::-moz-range-progress { background: transparent; }
+#xz-vertical input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.5);
+}
+#xz-vertical input[type="range"]:focus { outline: none; }
+#xz-vertical input[type="range"]:focus::-webkit-slider-thumb { box-shadow: 0 0 0 3px rgba(0, 255, 255, 0.6); }
+#xz-vertical input[type="range"]:focus::-moz-range-thumb { box-shadow: 0 0 0 3px rgba(0, 255, 255, 0.6); }
+
+#xz-vertical input[type="number"] {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 4px 5px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(120, 130, 200, 0.4);
+  border-radius: 4px;
+  color: #fff;
+  font-family: monospace;
+  font-size: 0.85rem;
+  text-align: center;
+}
+#xz-vertical input[type="number"]:focus { outline: 1px solid #00ffff; }
+
 /* 3D Labels */
 .axis-label {
   color: #fff;

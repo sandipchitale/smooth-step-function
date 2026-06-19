@@ -900,13 +900,13 @@ scene.add(outputPlaneLabel);
 
 // --- GUI ---
 const gui = new GUI({ width: 600 });
-gui.add(params, 'e', 0, 0.99).name('Smoothness (e)').onChange(updateGraph);
+const smoothCtrl = gui.add(params, 'e', 0, 0.99).name('Smoothness (e)').onChange(updateGraph);
 // pi(x) reconstructed from the zeros — pairs with the cyan prime-count staircase.
 gui.add(params, 'showPiApprox').name('π(x) from zeros (yellow)').onChange((v: boolean) => {
     piApproxLine.visible = v;
     piApproxLabel.visible = v;
 });
-gui.add(params, 'piZeros', 0, nontrivialZerosImag.length, 1)
+const piZerosCtrl = gui.add(params, 'piZeros', 0, nontrivialZerosImag.length, 1)
     .name('  └ # zeros (π reconstruction)').onChange(updatePiApprox);
 gui.add(params, 'showXYGrid').name('Show XY Grid').onChange((v: boolean) => {
     gridHelper.visible = v;
@@ -916,18 +916,14 @@ gui.add(params, 'showXZGrid').name('Show XZ Grid').onChange((v: boolean) => {
     criticalGridHelper.visible = v;
     outputPlaneLabel.visible = v;
 });
-gui.add(params, 'xzGridY', -60, 60, 0.01).name('XZ Grid Y').onChange((v: number) => {
-    criticalGridHelper.position.y = v;
-    outputPlaneLabel.position.y = v;
-    updateIntersection(v);
-});
+// XZ Grid Y is a dedicated VERTICAL slider appended into the panel below (not a lil-gui row).
 gui.add(params, 'showValueLine').name('Show ζ-value label').onChange((v: boolean) => {
     if (intersectionConnector) intersectionConnector.visible = v;
     intersectionLabel.visible = v; // label and its connector toggle together
 });
 gui.add(params, 'showArgTrail').name('Show phasor trail').onChange(updateArgTrail);
-gui.add(params, 'trailWindow', 1, 25, 1).name('  └ trail ± window (t)').onChange(updateArgTrail);
-gui.add(params, 'originShift', 0, 1, 0.01).name('Origin shift (0 = Im axis, ½ = critical line)').onChange((v: number) => {
+const trailWindowCtrl = gui.add(params, 'trailWindow', 1, 25, 1).name('  └ trail ± window (t)').onChange(updateArgTrail);
+const originShiftCtrl = gui.add(params, 'originShift', 0, 1, 0.01).name('Origin shift (0 = Im axis, ½ = critical line)').onChange((v: number) => {
     updateZetaShift();
     criticalGridHelper.position.x = v; // output-frame origin (center cross) tracks the shift
     imaginaryGridHelper.position.x = v; // YZ plane slides with the shift too
@@ -950,11 +946,138 @@ efFolder.add(params, 'showExplicitFormula').name('Show explicit-formula curves')
     .onChange(applyExplicitFormulaVisibility);
 efFolder.add(params, 'showPsiApprox').name('ψ(x) from zeros (green)')
     .onChange(applyExplicitFormulaVisibility);
-efFolder.add(params, 'psiZeros', 0, nontrivialZerosImag.length, 1)
+const psiZerosCtrl = efFolder.add(params, 'psiZeros', 0, nontrivialZerosImag.length, 1)
     .name('  └ # zeros (ψ / green)').onChange(updatePsiApprox);
 efFolder.add(params, 'showPsiTrue').name('True ψ(x), log-p steps (orange)')
     .onChange(applyExplicitFormulaVisibility);
 efFolder.close();
+
+// ============================================================================
+// --- Keyboard operability for all ranges + dedicated VERTICAL XZ-Grid-Y slider ---
+// ============================================================================
+
+// Sorted t-values of the non-trivial zeros (both signs) within the slider range,
+// used for Shift+Arrow snapping on the XZ-Grid-Y slider.
+const zeroTs = [...nontrivialZerosImag.map(t => -t), ...nontrivialZerosImag]
+    .filter(t => t >= -60 && t <= 60)
+    .sort((a, b) => a - b);
+
+// Nearest snap point strictly above (dir > 0) or below (dir < 0) v.
+function snapNext(points: number[], v: number, dir: number): number {
+    if (dir > 0) {
+        for (const p of points) if (p > v + 1e-6) return p;
+        return points[points.length - 1] ?? v;
+    }
+    for (let i = points.length - 1; i >= 0; i--) if (points[i] < v - 1e-6) return points[i];
+    return points[0] ?? v;
+}
+
+// Make a lil-gui numeric controller keyboard-operable: focus its slider, then
+// Arrow keys step by the controller's step (Shift = ×10, or snap to snapPoints).
+function enableKeyboard(controller: any, opts: { snapPoints?: number[] } = {}) {
+    const slider = controller.domElement.querySelector('.lil-slider, .slider') as HTMLElement | null;
+    const target = slider ?? (controller.domElement as HTMLElement);
+    target.tabIndex = 0;
+    target.classList.add('kb-slider');
+    target.addEventListener('keydown', (e: KeyboardEvent) => {
+        const step = controller._step ?? 1;
+        const min = controller._min ?? 0;
+        const max = controller._max ?? 1;
+        const up = e.key === 'ArrowUp' || e.key === 'ArrowRight';
+        const down = e.key === 'ArrowDown' || e.key === 'ArrowLeft';
+        let v = controller.getValue();
+        let handled = true;
+        if (e.shiftKey && opts.snapPoints && (up || down)) v = snapNext(opts.snapPoints, v, up ? 1 : -1);
+        else if (up) v += e.shiftKey ? step * 10 : step;
+        else if (down) v -= e.shiftKey ? step * 10 : step;
+        else if (e.key === 'Home') v = max;
+        else if (e.key === 'End') v = min;
+        else handled = false;
+        if (handled) {
+            e.preventDefault();
+            controller.setValue(Math.min(max, Math.max(min, v)));
+        }
+    });
+}
+
+enableKeyboard(smoothCtrl);
+enableKeyboard(piZerosCtrl);
+enableKeyboard(trailWindowCtrl);
+enableKeyboard(originShiftCtrl, { snapPoints: [0, 0.5, 1] }); // Shift+Arrow snaps to 0 / ½ / 1
+enableKeyboard(psiZerosCtrl);
+
+// --- Vertical XZ-Grid-Y slider: a narrow strip hugging the right edge ---
+// Snap targets for Shift+↑/↓: the non-trivial zeros plus the origin t = 0.
+const xzSnaps = [...zeroTs, 0].sort((a, b) => a - b);
+
+const xzPanel = document.createElement('div');
+xzPanel.id = 'xz-vertical';
+const xzLabel = document.createElement('div');
+xzLabel.className = 'xz-label';
+xzLabel.textContent = 'XZ Grid Y (t)';
+const xzInput = document.createElement('input');
+xzInput.type = 'range';
+xzInput.min = '-60';
+xzInput.max = '60';
+xzInput.step = 'any';
+xzInput.value = String(params.xzGridY);
+xzInput.title = 'Sweep the output floor (t).  ↑/↓ move,  Shift+↑/↓ snap to non-trivial zeros / origin';
+const xzNumber = document.createElement('input'); // type a value directly
+xzNumber.type = 'number';
+xzNumber.min = '-60';
+xzNumber.max = '60';
+xzNumber.step = '0.1';
+xzNumber.title = 'Type a t value';
+xzPanel.append(xzLabel, xzInput, xzNumber);
+document.body.appendChild(xzPanel);
+
+// Sit directly below the lil-gui panel, both hugging the right edge. Track the
+// panel's height (folders open/close, window resize) so it stays glued beneath it.
+const guiEl = gui.domElement as HTMLElement;
+// Pin the panel to the right edge (lil-gui defaults to right: 15px) and retheme its
+// background to match the vertical-slider panel. Inline custom properties beat lil-gui's
+// injected stylesheet regardless of load order.
+guiEl.style.right = '0px';
+guiEl.style.setProperty('--background-color', 'rgba(16, 16, 34, 0.85)');
+guiEl.style.setProperty('--title-background-color', 'rgba(8, 8, 20, 0.92)');
+guiEl.style.backdropFilter = 'blur(8px)';
+(guiEl.style as any).webkitBackdropFilter = 'blur(8px)';
+function positionXzPanel() {
+    xzPanel.style.top = `${guiEl.getBoundingClientRect().bottom}px`;
+}
+new ResizeObserver(positionXzPanel).observe(guiEl);
+window.addEventListener('resize', positionXzPanel);
+positionXzPanel();
+
+function setXzGridY(v: number) {
+    v = Math.min(60, Math.max(-60, v));
+    params.xzGridY = v;
+    criticalGridHelper.position.y = v;
+    outputPlaneLabel.position.y = v;
+    updateIntersection(v);
+    xzInput.value = String(v);
+    xzNumber.value = v.toFixed(2);
+}
+
+xzInput.addEventListener('input', () => setXzGridY(parseFloat(xzInput.value)));
+// Only ↑/↓ move the vertical slider (Shift+↑/↓ snap); swallow other range keys.
+xzInput.addEventListener('keydown', (e) => {
+    const up = e.key === 'ArrowUp';
+    const down = e.key === 'ArrowDown';
+    if (e.key.startsWith('Arrow') || e.key === 'PageUp' || e.key === 'PageDown' || e.key === 'Home' || e.key === 'End') {
+        e.preventDefault(); // disable native Left/Right/Page/Home/End movement
+    }
+    if (!up && !down) return;
+    const v = e.shiftKey ? snapNext(xzSnaps, params.xzGridY, up ? 1 : -1) : params.xzGridY + (up ? 0.1 : -0.1);
+    setXzGridY(v);
+});
+// Number field: commit typed values on change.
+xzNumber.addEventListener('change', () => {
+    const n = parseFloat(xzNumber.value);
+    if (!Number.isNaN(n)) setXzGridY(n);
+});
+
+setXzGridY(params.xzGridY); // initialise floor position + readout
 
 // --- Animation Loop ---
 function animate() {
