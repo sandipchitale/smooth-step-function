@@ -267,6 +267,38 @@ primes.forEach((p, i) => {
   scene.add(label);
 });
 
+// Key real-axis markers: -1 (zeta = -1/12), 0 (number-line origin),
+// 1/2 (critical line / zeta-value origin), 1 (zeta pole)
+const realAxisMarks: { value: number; text: string; labelY: number }[] = [
+  { value: -1,  text: '-1',  labelY: -2 },
+  { value: 0,   text: '0',   labelY: -2 },
+  { value: 0.5, text: '1/2', labelY: -4 }, // lower, to avoid colliding with 0 and 1
+  { value: 1,   text: '1',   labelY: -2 },
+];
+const realAxisMarkPositions = new Float32Array(realAxisMarks.length * 3);
+realAxisMarks.forEach(({ value, text, labelY }, i) => {
+  realAxisMarkPositions[i * 3] = value;
+  realAxisMarkPositions[i * 3 + 1] = 0;
+  realAxisMarkPositions[i * 3 + 2] = 0;
+
+  const div = document.createElement('div');
+  div.className = 'prime-label';
+  div.textContent = text;
+  const label = new CSS2DObject(div);
+  label.position.set(value, labelY, 0);
+  scene.add(label);
+});
+
+const realAxisMarkGeometry = new THREE.BufferGeometry();
+realAxisMarkGeometry.setAttribute('position', new THREE.BufferAttribute(realAxisMarkPositions, 3));
+const realAxisMarkMaterial = new THREE.PointsMaterial({
+  color: 0xffffff,
+  size: 5,
+  sizeAttenuation: false, // Constant screen size, matches prime points
+});
+const realAxisMarkPoints = new THREE.Points(realAxisMarkGeometry, realAxisMarkMaterial);
+scene.add(realAxisMarkPoints);
+
 primesGeometry.setAttribute('position', new THREE.BufferAttribute(primesPositions, 3));
 
 const primesMaterial = new THREE.PointsMaterial({
@@ -327,6 +359,10 @@ class Complex {
       (this.im * c.re - this.re * c.im) / denom
     );
   }
+
+  scale(k: number): Complex {
+    return new Complex(this.re * k, this.im * k);
+  }
 }
 
 // Calculate n^(-s) where s = 0.5 + iy
@@ -340,20 +376,38 @@ function nPowMinusS(n: number, y: number): Complex {
   return new Complex(r * Math.cos(theta), r * Math.sin(theta));
 }
 
-// Dirichlet Eta Function (Alternating Zeta)
+// Dirichlet Eta Function (Alternating Zeta), s = 0.5 + iy
 // eta(s) = sum (-1)^(n-1) / n^s
-// Valid for Re(s) > 0
-function eta(y: number, terms: number = 100): Complex {
-  let sum = new Complex(0, 0);
-  for (let n = 1; n <= terms; n++) {
-    const term = nPowMinusS(n, y);
-    if ((n - 1) % 2 === 1) { // Subtract if (n-1) is odd => n is even (2, 4...)
-       sum = sum.sub(term);
-    } else {
-       sum = sum.add(term);
-    }
+//
+// Computed via Borwein's algorithm rather than the naive alternating sum.
+// The naive series converges far too slowly on the critical line (Re(s)=0.5):
+// even 200 terms left zeta(0.5) reading ~-1.38 instead of -1.46. Borwein gives
+// ~n digits of accuracy from n terms, so n=60 nails the whole y in [-50,50] range
+// (including ~1e-10 magnitude at the nontrivial zeros).
+//
+//   d_k = n * sum_{i=0}^{k} (n+i-1)! 4^i / ((n-i)! (2i)!)
+//   eta(s) = -1/d_n * sum_{k=0}^{n-1} (-1)^k (d_k - d_n) / (k+1)^s
+function eta(y: number, n: number = 60): Complex {
+  // Build d_k cumulatively. t_0 = 1/n, and
+  // t_i = t_{i-1} * (n+i-1) * 4 * (n-i+1) / ((2i)(2i-1)).
+  const d = new Array<number>(n + 1);
+  let cum = 0;
+  let t = 1 / n;
+  for (let i = 0; i <= n; i++) {
+    cum += t;
+    d[i] = n * cum;
+    const i1 = i + 1;
+    t = t * (n + i1 - 1) * 4 * (n - i1 + 1) / ((2 * i1) * (2 * i1 - 1));
   }
-  return sum;
+
+  const dn = d[n];
+  let sum = new Complex(0, 0);
+  for (let k = 0; k < n; k++) {
+    const sign = (k % 2 === 0) ? 1 : -1;
+    // nPowMinusS(k+1, y) = (k+1)^(-s) = 1 / (k+1)^s
+    sum = sum.add(nPowMinusS(k + 1, y).scale(sign * (d[k] - dn)));
+  }
+  return sum.scale(-1 / dn);
 }
 
 // Zeta(s) = eta(s) / (1 - 2^(1-s))
@@ -366,7 +420,7 @@ function zeta(y: number): Complex {
   const factorIm = Math.sqrt(2) * Math.sin(-y * ln2);
   
   const denom = new Complex(1 - factorRe, -factorIm);
-  const num = eta(y, 200); // 200 terms for better precision
+  const num = eta(y); // Borwein algorithm, n=60 terms is accurate over y in [-50,50]
   
   return num.div(denom);
 }
@@ -460,8 +514,8 @@ function updateIntersection(y: number) {
     
     intersectionLabelDiv.textContent = `ζ = ${z.re.toFixed(2)} + ${z.im.toFixed(2)}i`;
     
-    // Offset label to the right side
-    const labelPos = point.clone().add(new THREE.Vector3(15, 5, 0));
+    // Offset label to the left side (negative half of the XY grid)
+    const labelPos = point.clone().add(new THREE.Vector3(-15, 5, 0));
     intersectionLabel.position.copy(labelPos);
     
     // Update Connector
