@@ -36,7 +36,7 @@ body {
   position: fixed;
   top: 0;
   left: 0;
-  width: 320px;
+  width: 420px;
   height: 100vh;
   z-index: 5;
   box-sizing: border-box;
@@ -60,7 +60,7 @@ body.sidebar-collapsed #sidebar {
 #sidebar-toggle {
   position: fixed;
   top: 14px;
-  left: 332px;
+  left: 368px; /* inside the sidebar, near its right edge, when expanded */
   z-index: 6;
   width: 40px;
   height: 40px;

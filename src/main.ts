@@ -845,7 +845,7 @@ animate();
 const sidebarToggle = document.getElementById('sidebar-toggle');
 sidebarToggle?.addEventListener('click', () => {
   const collapsed = document.body.classList.toggle('sidebar-collapsed');
-  sidebarToggle.textContent = collapsed ? '☰' : '✕';
+  sidebarToggle.textContent = collapsed ? '›' : '‹'; // › to expand, ‹ to collapse
 });
 
 // --- Window Resize ---
