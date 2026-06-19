@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+/memory/MEMORY.md
+/memory/user-expert-analytic-number-theory.md
+/memory/zeta-visualization-project.md

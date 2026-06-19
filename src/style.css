@@ -31,30 +31,93 @@ body {
   z-index: 1;
 }
 
-#ui {
-  position: absolute;
-  top: 20px;
-  left: 20px;
-  z-index: 2;
-  pointer-events: none; /* Let clicks pass through to canvas for OrbitControls */
+/* ---------- Collapsible legend sidebar ---------- */
+#sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 320px;
+  height: 100vh;
+  z-index: 5;
+  box-sizing: border-box;
+  padding: 64px 18px 24px;
+  overflow-y: auto;
+  background: linear-gradient(160deg, rgba(16, 16, 34, 0.92), rgba(8, 8, 20, 0.92));
+  backdrop-filter: blur(8px);
+  border-right: 1px solid rgba(120, 130, 200, 0.25);
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.5);
+  transition: transform 0.32s cubic-bezier(0.4, 0, 0.2, 1);
+  font-size: 0.86rem;
+  color: rgba(255, 255, 255, 0.88);
 }
+body.sidebar-collapsed #sidebar {
+  transform: translateX(-100%);
+}
+
+#sidebar::-webkit-scrollbar { width: 8px; }
+#sidebar::-webkit-scrollbar-thumb { background: rgba(120, 130, 200, 0.4); border-radius: 4px; }
+
+#sidebar-toggle {
+  position: fixed;
+  top: 14px;
+  left: 332px;
+  z-index: 6;
+  width: 40px;
+  height: 40px;
+  border: 1px solid rgba(120, 130, 200, 0.4);
+  border-radius: 10px;
+  background: rgba(16, 16, 34, 0.9);
+  color: #fff;
+  font-size: 1.2rem;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+  transition: left 0.32s cubic-bezier(0.4, 0, 0.2, 1), background 0.2s;
+}
+#sidebar-toggle:hover { background: rgba(40, 42, 80, 0.95); }
+body.sidebar-collapsed #sidebar-toggle { left: 14px; }
 
 h1 {
-  margin: 0;
-  font-size: 1.5rem;
-  font-weight: 600;
-  text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+  margin: 0 0 6px;
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1.25;
+  background: linear-gradient(90deg, #00ffff, #ff66ff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: none;
 }
 
-.legend {
-  margin-top: 10px;
-  background: rgba(0, 0, 0, 0.5);
-  padding: 10px;
-  border-radius: 8px;
-  display: inline-block;
-  backdrop-filter: blur(5px);
-  font-size: 0.9rem;
+.tagline {
+  margin: 0 0 16px;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.6);
 }
+
+.card {
+  background: rgba(255, 255, 255, 0.04);
+  border-left: 3px solid #888;
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 14px;
+}
+.card h2 {
+  margin: 0 0 8px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.accent-cyan    { border-left-color: #00ffff; }
+.accent-cyan h2    { color: #00ffff; }
+.accent-green   { border-left-color: #00ff88; }
+.accent-green h2   { color: #00ff88; }
+.accent-magenta { border-left-color: #ff66ff; }
+.accent-magenta h2 { color: #ff66ff; }
+
+.legend-list, .shift-list { list-style: none; margin: 0; padding: 0; }
+.legend-list li, .shift-list li { margin: 6px 0; line-height: 1.35; }
 
 .color-box {
   display: inline-block;
@@ -64,10 +127,53 @@ h1 {
   margin-right: 8px;
   vertical-align: middle;
 }
+.white   { background-color: #ffffff; box-shadow: 0 0 6px #ffffff; }
+.cyan    { background-color: #00ffff; box-shadow: 0 0 6px #00ffff; }
+.magenta { background-color: #ff00ff; box-shadow: 0 0 6px #ff00ff; }
+.red     { background-color: #ff3030; box-shadow: 0 0 6px #ff3030; }
+.yellow  { background-color: #ffff00; box-shadow: 0 0 6px #ffff00; }
+.green   { background-color: #00ff88; box-shadow: 0 0 6px #00ff88; }
+.orange  { background-color: #ffaa00; box-shadow: 0 0 6px #ffaa00; }
+.gray    { background-color: #8a8a9a; box-shadow: 0 0 6px #8a8a9a; }
 
-.white { background-color: #ffffff; box-shadow: 0 0 5px #ffffff;}
-.cyan { background-color: #00ffff; box-shadow: 0 0 5px #00ffff;}
-.orange { background-color: #ffaa00; box-shadow: 0 0 5px #ffaa00;}
+.grid-list { margin: 0; }
+.grid-list dt {
+  font-weight: 700;
+  margin-top: 8px;
+  padding-left: 8px;
+  border-left: 3px solid transparent;
+}
+.grid-list dt span { font-weight: 400; opacity: 0.6; font-size: 0.78rem; }
+.grid-list dt.g-xy { border-left-color: #00ffff; color: #9beaff; }
+.grid-list dt.g-xz { border-left-color: #ffff00; color: #fff6a0; }
+.grid-list dt.g-yz { border-left-color: #ff66ff; color: #ffb3ff; }
+.grid-list dd { margin: 2px 0 6px 11px; font-size: 0.8rem; color: rgba(255,255,255,0.78); }
+
+.shift-list .pin {
+  display: inline-block;
+  min-width: 20px;
+  text-align: center;
+  font-weight: 700;
+  border-radius: 5px;
+  margin-right: 8px;
+  padding: 0 4px;
+}
+.pin-0    { background: rgba(0, 255, 255, 0.2);  color: #00ffff; border: 1px solid #00ffff; }
+.pin-half { background: rgba(255, 102, 255, 0.2); color: #ff66ff; border: 1px solid #ff66ff; }
+
+#sidebar code {
+  background: rgba(255, 255, 255, 0.08);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 0.78rem;
+}
+.payoff {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  background: rgba(255, 102, 255, 0.08);
+  border-radius: 6px;
+  font-size: 0.8rem;
+}
 
 /* 3D Labels */
 .axis-label {

@@ -7,13 +7,63 @@
     <title>smooth-step-function</title>
   </head>
   <body>
-    <div id="ui">
-      <h1>Prime Counting Function π(x) & Smooth Approximation</h1>
-      <div class="legend">
-        <span class="color-box white"></span> Primes (Real Axis) <br />
-        <span class="color-box cyan"></span> Count π(x)
-      </div>
-    </div>
+    <button id="sidebar-toggle" aria-label="Toggle legend" title="Show / hide legend">✕</button>
+
+    <aside id="sidebar">
+      <h1>Prime Counting&nbsp;π(x) &amp; the&nbsp;Zeta&nbsp;Landscape</h1>
+      <p class="tagline">A 3-D view linking the primes, the counting function, and the
+      non-trivial zeros of&nbsp;ζ(s) on the critical line.</p>
+
+      <!-- Colour legend -->
+      <section class="card accent-cyan">
+        <h2>Colour key</h2>
+        <ul class="legend-list">
+          <li><span class="color-box white"></span> Primes &amp; zeros on the real axis / critical line</li>
+          <li><span class="color-box cyan"></span> Prime count&nbsp;π(x) — smoothstep staircase</li>
+          <li><span class="color-box magenta"></span> ζ(½&nbsp;+&nbsp;it) along the critical line</li>
+          <li><span class="color-box red"></span> ζ value at the current XZ-grid height</li>
+          <li><span class="color-box yellow"></span> π(x) rebuilt from the zeros (Riemann)</li>
+          <li><span class="color-box green"></span> ψ(x) rebuilt from the zeros</li>
+          <li><span class="color-box orange"></span> True ψ(x) — Chebyshev, log&nbsp;p steps</li>
+          <li><span class="color-box gray"></span> Critical strip, axes &amp; grids</li>
+        </ul>
+      </section>
+
+      <!-- Grids -->
+      <section class="card accent-green">
+        <h2>The three grids</h2>
+        <dl class="grid-list">
+          <dt class="g-xy">XY plane <span>(Z = 0)</span></dt>
+          <dd>The complex s-plane and the counting plane.
+            <b>X = Re(s)</b>, <b>Y = Im(s) = t</b> (also the π-count height).
+            Holds the primes, the staircase, and the zeros on the critical line.</dd>
+
+          <dt class="g-xz">XZ plane <span>(movable floor)</span></dt>
+          <dd>The <b>output-value plane</b> at height <i>t</i> = “XZ&nbsp;Grid&nbsp;Y”.
+            <b>X = Re(ζ)</b>, <b>Z = Im(ζ)</b>, anchored on the critical line.
+            The red marker reads off ζ at that height.</dd>
+
+          <dt class="g-yz">YZ plane <span>(Re = 0)</span></dt>
+          <dd>The imaginary axis — the <b>number-line origin</b> plane.</dd>
+        </dl>
+      </section>
+
+      <!-- The origin shift -->
+      <section class="card accent-magenta">
+        <h2>★ The ½ origin shift</h2>
+        <p>One shared real axis, read with <b>two origins</b>:</p>
+        <ul class="shift-list">
+          <li><span class="pin pin-0">0</span> origin of the <b>number line</b> (primes, counting)</li>
+          <li><span class="pin pin-half">½</span> origin of the <b>ζ-value frame</b> (the critical line)</li>
+        </ul>
+        <p>ζ is drawn at <code>(½&nbsp;+&nbsp;Re&nbsp;ζ,&nbsp;t,&nbsp;Im&nbsp;ζ)</code>: its real part is
+          measured <i>from the critical line</i>, its imaginary part lives on the depth (Z) axis.</p>
+        <p class="payoff">Payoff: a non-trivial zero becomes a <b>geometric incidence</b> —
+          the magenta ribbon touches the critical line exactly when ζ&nbsp;=&nbsp;0.
+          Zeros are simply where the value-ribbon returns to the line.</p>
+      </section>
+    </aside>
+
     <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>

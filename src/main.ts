@@ -316,6 +316,7 @@ const params = {
   showXYGrid: true,
   showXZGrid: true,
   showYZGrid: true,
+  showCriticalStrip: true,
   xzGridY: 0,
   // Explicit-formula reconstruction of the prime staircase from the zeros.
   // Hidden by default; this is an extra "if you're curious" layer.
@@ -781,6 +782,9 @@ gui.add(params, 'xzGridY', -60, 60, 0.01).name('XZ Grid Y').onChange((v: number)
 gui.add(params, 'showYZGrid').name('Show YZ Grid (Re=0)').onChange((v: boolean) => {
     imaginaryGridHelper.visible = v;
 });
+gui.add(params, 'showCriticalStrip').name('Show Critical Strip').onChange((v: boolean) => {
+    criticalStrip.visible = v;
+});
 
 // Explicit-formula reconstruction of the staircase from the zeros
 const efFolder = gui.addFolder('Explicit Formula — staircases from zeros');
@@ -803,6 +807,13 @@ function animate() {
 }
 
 animate();
+
+// --- Legend sidebar toggle ---
+const sidebarToggle = document.getElementById('sidebar-toggle');
+sidebarToggle?.addEventListener('click', () => {
+  const collapsed = document.body.classList.toggle('sidebar-collapsed');
+  sidebarToggle.textContent = collapsed ? '☰' : '✕';
+});
 
 // --- Window Resize ---
 window.addEventListener('resize', () => {
