@@ -107,7 +107,7 @@ const yzAxisGeometry = new THREE.BufferGeometry().setFromPoints([
 ]);
 const yzAxisLine = new THREE.Line(yzAxisGeometry, yzAxisMaterial);
 yzAxisLine.position.x = 0.5; // matches params.originShift; slides with the shift
-yzAxisLine.visible = false;  // shows with the YZ grid (matches params.showYZGrid)
+yzAxisLine.visible = true;   // shown by default, independent of the YZ grid lines
 scene.add(yzAxisLine);
 
 // Replace multi-colored AxesHelper with simple Gray axes
@@ -330,6 +330,7 @@ const params = {
   showXYGrid: true,
   showXZGrid: true,
   showYZGrid: false,
+  showYZAxis: true, // YZ vertical axis, independent of the grid lines
   showCriticalStrip: true,
   xzGridY: 0,
   showValueLine: true, // the faint connector from the ζ-value label to the red marker
@@ -935,7 +936,9 @@ gui.add(params, 'originShift', 0, 1, 0.01).name('Origin shift (0 = Im axis, ½ =
 });
 gui.add(params, 'showYZGrid').name('Show YZ Grid (output origin)').onChange((v: boolean) => {
     imaginaryGridHelper.visible = v;
-    yzAxisLine.visible = v; // vertical axis shows with the YZ grid
+});
+gui.add(params, 'showYZAxis').name('Show YZ vertical axis').onChange((v: boolean) => {
+    yzAxisLine.visible = v;
 });
 gui.add(params, 'showCriticalStrip').name('Show Critical Strip').onChange((v: boolean) => {
     criticalStrip.visible = v;
