@@ -333,6 +333,8 @@ const params = {
   showCriticalStrip: true,
   xzGridY: 0,
   showValueLine: true, // the faint connector from the ζ-value label to the red marker
+  showArgTrail: false, // projected phasor-tip trail in the XZ floor (depth disambiguation)
+  trailWindow: 6,      // ± window in t over which the trail is drawn
   originShift: 0.5, // Re-origin of the output frame: 0 = Im axis, ½ = critical line
   // Explicit-formula reconstruction of the prime staircase from the zeros.
   // Hidden by default; this is an extra "if you're curious" layer.
@@ -460,13 +462,18 @@ const zetaMaterial = new THREE.LineBasicMaterial({ color: 0xff00ff, linewidth: 2
 const zetaGeometry = new THREE.BufferGeometry();
 const zetaPoints: number[] = [];
 const zetaRe: number[] = []; // cached Re(ζ) per sample; x = originShift + Re(ζ)
+const zetaIm: number[] = []; // cached Im(ζ) per sample (used by the projected phasor trail)
+const zetaYs: number[] = []; // cached t = Im(s) per sample
+const ZETA_DT = 0.01;        // sampling step in t; trail reuses these samples
 
 // Range -50 to 50
-for (let y = -50; y <= 50; y += 0.01) {
+for (let y = -50; y <= 50; y += ZETA_DT) {
     const z = zeta(y);
     // Plot at (originShift + Re(zeta), y, Im(zeta))
     // This wraps the "value" around the critical line in 3D space
     zetaRe.push(z.re);
+    zetaIm.push(z.im);
+    zetaYs.push(y);
     zetaPoints.push(params.originShift + z.re, y, z.im);
 }
 zetaGeometry.setAttribute('position', new THREE.Float32BufferAttribute(zetaPoints, 3));
@@ -480,6 +487,44 @@ function updateZetaShift() {
         pos[i * 3] = params.originShift + zetaRe[i];
     }
     zetaGeometry.attributes.position.needsUpdate = true;
+    updateArgTrail(); // trail x-positions depend on the shift too
+}
+
+// --- Projected phasor-tip "argument trail" ---
+// The ribbon's value (Re ζ, Im ζ) over a window of t around the current XZ floor,
+// flattened into that floor plane (constant y = xzGridY). Reading the winding in a
+// flat reference plane disambiguates the depth (Z = Im ζ) excursion of the 3D ribbon.
+// vertexColors lets the trail fade out toward both ends (away from the red dot at t = Y0):
+// each vertex's colour is the base magenta dimmed toward black by its distance in t.
+const argTrailMaterial = new THREE.LineBasicMaterial({ vertexColors: true, transparent: true });
+const argTrailGeometry = new THREE.BufferGeometry();
+const argTrailLine = new THREE.Line(argTrailGeometry, argTrailMaterial);
+scene.add(argTrailLine);
+
+function updateArgTrail() {
+    if (!params.showArgTrail) { argTrailLine.visible = false; return; }
+    argTrailLine.visible = true;
+    const Y0 = params.xzGridY;
+    const W = params.trailWindow;
+    const pts: number[] = [];
+    const cols: number[] = [];
+    // Base trail colour: magenta 0xff66ff.
+    const baseR = 1.0, baseG = 0.4, baseB = 1.0;
+    // zetaYs is uniformly sampled at ZETA_DT, so map the window to index range directly.
+    let lo = Math.ceil((Y0 - W - zetaYs[0]) / ZETA_DT);
+    let hi = Math.floor((Y0 + W - zetaYs[0]) / ZETA_DT);
+    lo = Math.max(0, lo);
+    hi = Math.min(zetaYs.length - 1, hi);
+    for (let i = lo; i <= hi; i++) {
+        // Flatten onto the floor: keep (X = origin+Re ζ, Z = Im ζ), force y = Y0.
+        pts.push(params.originShift + zetaRe[i], Y0, zetaIm[i]);
+        // Fade with distance from the red dot (t = Y0): bright at centre, dark at the ends.
+        const f = Math.pow(Math.max(0, 1 - Math.abs(zetaYs[i] - Y0) / W), 1.5);
+        cols.push(baseR * f, baseG * f, baseB * f);
+    }
+    argTrailGeometry.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+    argTrailGeometry.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
+    argTrailGeometry.computeBoundingSphere();
 }
 
 
@@ -616,16 +661,28 @@ psiApproxGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32
 const psiApproxLine = new THREE.Line(psiApproxGeometry, psiApproxMaterial);
 scene.add(psiApproxLine);
 
+// Convergence readout: rides the end of the curve, narrating what the slider does.
+const psiApproxLabel = createLabel('', MAX_X, 0, 0);
+psiApproxLabel.element.style.color = '#00ff88';
+scene.add(psiApproxLabel);
+
 function updatePsiApprox() {
   const N = Math.min(params.psiZeros, nontrivialZerosImag.length);
   const pos = psiApproxLine.geometry.attributes.position.array as Float32Array;
+  let peak = 0; // peak |reconstruction − true| → the Gibbs-like ringing amplitude
+  let endY = 0;
   for (let i = 0; i < STEPS; i++) {
     const x = (i / (STEPS - 1)) * MAX_X;
+    const yApprox = psiApprox(x, N);
     pos[i * 3] = x;
-    pos[i * 3 + 1] = psiApprox(x, N);
+    pos[i * 3 + 1] = yApprox;
     pos[i * 3 + 2] = 0;
+    if (x > 2) peak = Math.max(peak, Math.abs(yApprox - psiTrue(x))); // skip x≤2 (formula singular)
+    endY = yApprox;
   }
   psiApproxLine.geometry.attributes.position.needsUpdate = true;
+  psiApproxLabel.element.textContent = `ψ from ${N} zeros · peak ringing ±${peak.toFixed(1)}`;
+  psiApproxLabel.position.set(MAX_X, endY, 0);
 }
 
 // ============================================================================
@@ -716,16 +773,30 @@ piApproxGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32A
 const piApproxLine = new THREE.Line(piApproxGeometry, piApproxMaterial);
 scene.add(piApproxLine);
 
+// Convergence readout for the π reconstruction.
+const piApproxLabel = createLabel('', MAX_X, 0, 0);
+piApproxLabel.element.style.color = '#ffff00';
+scene.add(piApproxLabel);
+
 function updatePiApprox() {
   const N = Math.min(params.piZeros, nontrivialZerosImag.length);
   const pos = piApproxLine.geometry.attributes.position.array as Float32Array;
+  let peak = 0; // peak |reconstruction − true π(x)| → the ringing amplitude
+  let endY = 0;
+  let pIdx = 0; // running count of primes ≤ x (x increases monotonically)
   for (let i = 0; i < PI_STEPS; i++) {
     const x = (i / (PI_STEPS - 1)) * MAX_X;
+    const yApprox = piRiemann(x, N);
     pos[i * 3] = x;
-    pos[i * 3 + 1] = piRiemann(x, N);
+    pos[i * 3 + 1] = yApprox;
     pos[i * 3 + 2] = 0;
+    while (pIdx < primes.length && primes[pIdx] <= x) pIdx++;
+    if (x > 2) peak = Math.max(peak, Math.abs(yApprox - pIdx)); // pIdx = true π(x)
+    endY = yApprox;
   }
   piApproxLine.geometry.attributes.position.needsUpdate = true;
+  piApproxLabel.element.textContent = `π from ${N} zeros · peak ringing ±${peak.toFixed(1)}`;
+  piApproxLabel.position.set(MAX_X, endY, 0);
 }
 
 // --- Intersection Visualization ---
@@ -753,6 +824,9 @@ function updateIntersection(y: number) {
 
     intersectionMarker.position.copy(point);
 
+    // Projected phasor-tip trail follows the floor height and the shift.
+    updateArgTrail();
+
     // Radial line: from the foot on the YZ vertical axis (originShift, y, 0) to the red dot.
     const foot = new THREE.Vector3(params.originShift, y, 0);
     if (radialLine) {
@@ -768,7 +842,11 @@ function updateIntersection(y: number) {
         radialLine = null; // |ζ| ≈ 0: marker sits on the axis, no radius to draw
     }
     
-    intersectionLabelDiv.textContent = `ζ = ${z.re.toFixed(2)} + ${z.im.toFixed(2)}i`;
+    const mod = Math.hypot(z.re, z.im);
+    const argDeg = Math.atan2(z.im, z.re) * 180 / Math.PI;
+    const sign = z.im < 0 ? '−' : '+';
+    intersectionLabelDiv.textContent =
+        `ζ = ${z.re.toFixed(2)} ${sign} ${Math.abs(z.im).toFixed(2)}i   |ζ| = ${mod.toFixed(2)}   arg = ${argDeg.toFixed(0)}°`;
     
     // Offset label to the left side (negative half of the XY grid)
     const labelPos = point.clone().add(new THREE.Vector3(-15, 5, 0));
@@ -798,12 +876,14 @@ function applyExplicitFormulaVisibility() {
   const on = params.showExplicitFormula;
   psiTrueLine.visible = on && params.showPsiTrue;
   psiApproxLine.visible = on && params.showPsiApprox;
+  psiApproxLabel.visible = on && params.showPsiApprox;
 }
 applyExplicitFormulaVisibility(); // start hidden
 
 // The pi(x) reconstruction goes with the cyan prime-count, NOT the explicit-
 // formula group, so it has its own independent toggle.
 piApproxLine.visible = params.showPiApprox;
+piApproxLabel.visible = params.showPiApprox;
 
 // --- Plane identity labels (input vs output) ---
 // Color-matched to the sidebar grid key: XY = cyan (input s-plane),
@@ -823,6 +903,7 @@ gui.add(params, 'e', 0, 0.99).name('Smoothness (e)').onChange(updateGraph);
 // pi(x) reconstructed from the zeros — pairs with the cyan prime-count staircase.
 gui.add(params, 'showPiApprox').name('π(x) from zeros (yellow)').onChange((v: boolean) => {
     piApproxLine.visible = v;
+    piApproxLabel.visible = v;
 });
 gui.add(params, 'piZeros', 0, nontrivialZerosImag.length, 1)
     .name('  └ # zeros (π reconstruction)').onChange(updatePiApprox);
@@ -843,6 +924,8 @@ gui.add(params, 'showValueLine').name('Show ζ-value label').onChange((v: boolea
     if (intersectionConnector) intersectionConnector.visible = v;
     intersectionLabel.visible = v; // label and its connector toggle together
 });
+gui.add(params, 'showArgTrail').name('Show phasor trail').onChange(updateArgTrail);
+gui.add(params, 'trailWindow', 1, 25, 1).name('  └ trail ± window (t)').onChange(updateArgTrail);
 gui.add(params, 'originShift', 0, 1, 0.01).name('Origin shift (0 = Im axis, ½ = critical line)').onChange((v: number) => {
     updateZetaShift();
     criticalGridHelper.position.x = v; // output-frame origin (center cross) tracks the shift

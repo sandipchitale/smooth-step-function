@@ -102,21 +102,35 @@ h1 {
   padding: 10px 12px;
   margin-bottom: 14px;
 }
-.card h2 {
-  margin: 0 0 8px;
+.card > summary {
+  margin: 0;
   font-size: 0.82rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
 }
+.card > summary::-webkit-details-marker { display: none; }
+.card > summary::before {
+  content: '▸';
+  margin-right: 7px;
+  font-size: 0.7rem;
+  opacity: 0.8;
+}
+.card[open] > summary::before { content: '▾'; }
+.card[open] > summary { margin-bottom: 8px; }
+
 .accent-cyan    { border-left-color: #00ffff; }
-.accent-cyan h2    { color: #00ffff; }
+.accent-cyan > summary    { color: #00ffff; }
 .accent-green   { border-left-color: #00ff88; }
-.accent-green h2   { color: #00ff88; }
+.accent-green > summary   { color: #00ff88; }
 .accent-magenta { border-left-color: #ff66ff; }
-.accent-magenta h2 { color: #ff66ff; }
+.accent-magenta > summary { color: #ff66ff; }
 .accent-red     { border-left-color: #ff3030; }
-.accent-red h2     { color: #ff5050; }
+.accent-red > summary     { color: #ff5050; }
 
 .legend-list, .shift-list { list-style: none; margin: 0; padding: 0; }
 .legend-list li, .shift-list li { margin: 6px 0; line-height: 1.35; }
