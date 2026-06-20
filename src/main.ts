@@ -897,6 +897,73 @@ const outputPlaneLabel = createLabel('output  ζ-plane', 40, params.xzGridY, 40)
 outputPlaneLabel.element.style.color = '#ffff00';
 scene.add(outputPlaneLabel);
 
+// Sorted t-values of the non-trivial zeros (both signs) within range, plus the origin.
+// Used for Shift+Arrow snapping on the XZ slider AND for highlighting special floor heights.
+const zeroTs = [...nontrivialZerosImag.map(t => -t), ...nontrivialZerosImag]
+    .filter(t => t >= -60 && t <= 60)
+    .sort((a, b) => a - b);
+const xzSnaps = [...zeroTs, 0].sort((a, b) => a - b);
+
+// --- Offset-origin marker: the output-frame origin, kept on the y = 0 plane ---
+// Sits at (originShift, 0, 0) and slides in x with the Origin-shift slider.
+const offsetOriginMarker = new THREE.Mesh(
+    new THREE.SphereGeometry(0.1, 16, 16),
+    new THREE.MeshBasicMaterial({ color: 0x00ff00 })
+);
+scene.add(offsetOriginMarker);
+
+const offsetOriginLabel = createLabel('', 0, 0, 0);
+offsetOriginLabel.element.style.color = '#00ff00';
+scene.add(offsetOriginLabel);
+
+let offsetOriginConnector: THREE.Mesh | null = null;
+
+function updateOffsetOrigin() {
+    const x = params.originShift;
+    const point = new THREE.Vector3(x, 0, 0);          // always on the y = 0 plane
+    offsetOriginMarker.position.copy(point);
+
+    // At exactly ½ the offset origin registers with the critical line — signal the
+    // specialness of this position by turning the critical line, the ζ ribbon, and the
+    // complex (non-trivial) zeros green; otherwise restore their usual colours.
+    const atHalf = Math.abs(x - 0.5) < 1e-6;
+    criticalLineMaterial.color.set(atHalf ? 0x00ff00 : 0xffffff);
+    zetaMaterial.color.set(atHalf ? 0x00ff00 : 0xff00ff);   // ζ ribbon: green at ½, else magenta
+    zeroesMaterial.color.set(atHalf ? 0x00ff00 : 0xffffff); // complex zeros: green at ½, else white
+
+    const labelPos = new THREE.Vector3(x, 0, 12); // same x & y as the dot ⇒ connector runs along z, perpendicular to the XY plane
+    offsetOriginLabel.position.copy(labelPos);
+    offsetOriginLabel.element.textContent = `offset origin (x = ${x.toFixed(2)})`;
+
+    if (offsetOriginConnector) {
+        scene.remove(offsetOriginConnector);
+        offsetOriginConnector.geometry.dispose();
+        (offsetOriginConnector.material as THREE.Material).dispose();
+    }
+    offsetOriginConnector = createConnector(labelPos, point, 0.02, 0x00ff00);
+    (offsetOriginConnector.material as THREE.MeshBasicMaterial).opacity = 0.4; // faint
+    scene.add(offsetOriginConnector);
+}
+updateOffsetOrigin();
+
+// --- XZ plane's z-axis (both directions), highlighted green when the floor is at y = 0 ---
+// Same colour & thinness as the critical line; runs through the floor centre along ±z.
+const xzPosZAxisMaterial = new THREE.LineBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.5 });
+const xzPosZAxisGeometry = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(0, 0, -60),
+    new THREE.Vector3(0, 0, 60),
+]);
+const xzPosZAxis = new THREE.Line(xzPosZAxisGeometry, xzPosZAxisMaterial);
+scene.add(xzPosZAxis);
+
+function updateXzPosZAxis() {
+    xzPosZAxis.position.x = params.originShift;          // sits on the output-frame origin
+    xzPosZAxis.position.y = params.xzGridY;              // rides the floor height
+    // Shown (green) when the floor sits at a special height: y = 0 or a non-trivial zero.
+    xzPosZAxis.visible = xzSnaps.some(p => Math.abs(p - params.xzGridY) < 1e-6);
+}
+updateXzPosZAxis();
+
 
 // --- GUI ---
 const gui = new GUI({ width: 600 });
@@ -928,6 +995,8 @@ const originShiftCtrl = gui.add(params, 'originShift', 0, 1, 0.01).name('Origin 
     criticalGridHelper.position.x = v; // output-frame origin (center cross) tracks the shift
     imaginaryGridHelper.position.x = v; // YZ plane slides with the shift too
     yzAxisLine.position.x = v;          // YZ vertical axis slides with the shift too
+    updateOffsetOrigin();              // green offset-origin dot + label follow the shift
+    updateXzPosZAxis();                // green +z axis tracks the shift in x
     updateIntersection(params.xzGridY);
 });
 gui.add(params, 'showYZGrid').name('Show YZ Grid (output origin)').onChange((v: boolean) => {
@@ -956,11 +1025,7 @@ efFolder.close();
 // --- Keyboard operability for all ranges + dedicated VERTICAL XZ-Grid-Y slider ---
 // ============================================================================
 
-// Sorted t-values of the non-trivial zeros (both signs) within the slider range,
-// used for Shift+Arrow snapping on the XZ-Grid-Y slider.
-const zeroTs = [...nontrivialZerosImag.map(t => -t), ...nontrivialZerosImag]
-    .filter(t => t >= -60 && t <= 60)
-    .sort((a, b) => a - b);
+// (zeroTs / xzSnaps are defined earlier, near the floor-highlight markers.)
 
 // Nearest snap point strictly above (dir > 0) or below (dir < 0) v.
 function snapNext(points: number[], v: number, dir: number): number {
@@ -1007,9 +1072,7 @@ enableKeyboard(originShiftCtrl, { snapPoints: [0, 0.5, 1] }); // Shift+Arrow sna
 enableKeyboard(psiZerosCtrl);
 
 // --- Vertical XZ-Grid-Y slider: a narrow strip hugging the right edge ---
-// Snap targets for Shift+↑/↓: the non-trivial zeros plus the origin t = 0.
-const xzSnaps = [...zeroTs, 0].sort((a, b) => a - b);
-
+// Snap targets for Shift+↑/↓ are xzSnaps (non-trivial zeros + origin), defined earlier.
 const xzPanel = document.createElement('div');
 xzPanel.id = 'xz-vertical';
 const xzLabel = document.createElement('div');
@@ -1054,6 +1117,7 @@ function setXzGridY(v: number) {
     params.xzGridY = v;
     criticalGridHelper.position.y = v;
     outputPlaneLabel.position.y = v;
+    updateXzPosZAxis(); // green +z axis shows only when the floor is at y = 0
     updateIntersection(v);
     xzInput.value = String(v);
     xzNumber.value = v.toFixed(2);
