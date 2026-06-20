@@ -33,6 +33,7 @@ browser — nothing is pre‑baked.
   - [The value as a phasor: |ζ| and arg ζ](#the-value-as-a-phasor-ζ-and-arg-ζ)
 - [How ζ is computed (and why it is accurate on the line)](#how-ζ-is-computed-and-why-it-is-accurate-on-the-line)
 - [Controls reference](#controls-reference)
+  - [The ViewCube (navigation)](#the-viewcube-navigation)
 - [Keyboard & snapping](#keyboard--snapping)
 - [Getting started](#getting-started)
 - [Project structure](#project-structure)
@@ -271,22 +272,26 @@ Complex arithmetic is provided by a small hand‑rolled `Complex` class
 ## Controls reference
 
 Controls live in the [lil‑gui](https://lil-gui.georgealways.com/) panel docked to the
-**right edge**, with the **XZ Grid Y sweep as a vertical slider** in its own panel just
-below it (the floor moves up the screen as `t` increases). The collapsible legend on the
-left explains the ideas. **Every slider is keyboard‑operable** — see
-[Keyboard & snapping](#keyboard--snapping).
+**right edge** — topped by a **Projection** radio (perspective ↔ orthographic) — with the
+**XZ Grid Y sweep as a vertical slider** in its own panel just below it (the floor moves
+up the screen as `t` increases), and the [**ViewCube**](#the-viewcube-navigation) in a card
+to its left. The collapsible legend on the left explains the ideas. **Every slider is
+keyboard‑operable** — see [Keyboard & snapping](#keyboard--snapping).
+
+The panel is ordered with the headline controls first:
 
 | Control | What it does | Default |
 |:--------|:-------------|:-------:|
+| **Projection** | switch the camera between **perspective** and **orthographic** (parallel, no foreshortening — good for the axis‑aligned ViewCube snaps) | perspective |
+| **Origin shift** | ⭐ slide the output frame `0 → 1`; `0` = imaginary axis, `½` = critical line. At ½ the line, ribbon & zeros go **green**. Shift+↑/↓ snaps to `0 / ½ / 1` | `0.5` |
 | **Smoothness (e)** | morph the cyan π(x) staircase between a hard step and a smooth ramp | `0` (crisp) |
 | **π(x) from zeros** | (+ `# zeros`) the yellow Riemann reconstruction of the staircase | off |
-| **Show XY Grid** | the input s‑plane grid + its label | on |
-| **Show XZ Grid** | the output ζ‑plane floor + its label | on |
-| **XZ Grid Y** *(vertical slider + number field)* | sweep the floor to height `t`; the red marker reads ζ there. ↑/↓ move, Shift+↑/↓ snap to non‑trivial zeros / origin, or type a value | `0` |
 | **Show ζ‑value label** | the `ζ = a + bi · |ζ| · arg` readout and its connector line | on |
 | **Show phasor trail** | the flattened, fading value‑trail in the floor | **off** |
 | **└ trail ± window (t)** | how far in `t` the trail extends around the marker | `6` |
-| **Origin shift** | ⭐ slide the output frame `0 → 1`; `0` = imaginary axis, `½` = critical line. At ½ the line, ribbon & zeros go **green**. Shift+↑/↓ snaps to `0 / ½ / 1` | `0.5` |
+| **XZ Grid Y** *(vertical slider + number field)* | sweep the floor to height `t`; the red marker reads ζ there. ↑/↓ move, Shift+↑/↓ snap to non‑trivial zeros / origin, or type a value | `0` |
+| **Show XY Grid** | the input s‑plane grid + its label | on |
+| **Show XZ Grid** | the output ζ‑plane floor + its label | on |
 | **Show YZ Grid (output origin)** | the YZ plane grid lines | **off** |
 | **Show YZ vertical axis** | the YZ plane's grey vertical axis (foot of the radial line) | **on** |
 | **Show Critical Strip** | the semi‑transparent band `0 < Re(s) < 1` | on |
@@ -295,6 +300,24 @@ left explains the ideas. **Every slider is keyboard‑operable** — see
 > turns green), focus the vertical **XZ Grid Y** slider, then **Shift+↑** repeatedly to
 > hop from zero to zero: at each one the red phasor pinches to nothing and the floor's
 > z‑axis lights up green.
+
+### The ViewCube (navigation)
+
+A [Tinkercad](https://www.tinkercad.com/)‑style **ViewCube** sits in a card just below the
+control panel. It mirrors the camera's orientation in real time — the labelled faces
+(**FRONT / BACK / LEFT / RIGHT / TOP / BOTTOM**) always tell you which way you are looking —
+and doubles as a navigator:
+
+- **Click a face, edge, or corner** (all **26** regions are live) to snap the camera to
+  that view — straight‑on for faces, 45° for edges, three‑quarter / isometric for corners —
+  animated, keeping your current orbit target and distance.
+- **Hover** highlights the exact region you are about to pick.
+- **Drag the cube** to orbit the main view.
+- **Home button** (⌂, top‑right of the card) returns to a three‑quarter view.
+
+It works in both projection modes. The cube itself is always drawn **orthographic** — the
+convention for an orientation gizmo, since perspective foreshortening would distort the
+faces without adding any orientation information.
 
 ---
 
@@ -348,7 +371,7 @@ smooth-step-function/
 ├── index.html        # page shell + the collapsible left-hand legend (the cards)
 ├── src/
 │   ├── main.ts       # everything: Complex/zeta math, scene, geometry, GUI, interaction
-│   └── style.css     # sidebar, legend cards, 3-D label styling
+│   └── style.css     # sidebar, legend cards, control panels, ViewCube card, 3-D labels
 ├── vite.config.ts    # Vite config (GitHub Pages base path)
 ├── tsconfig.json
 └── package.json

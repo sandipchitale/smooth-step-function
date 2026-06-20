@@ -325,6 +325,44 @@ h1 {
 }
 #xz-vertical input[type="number"]:focus { outline: 1px solid #00ffff; }
 
+/* ViewCube navigation widget — card under the lil-gui panel, left of the vertical slider */
+#view-cube {
+  position: fixed;
+  right: 138px;           /* clear of the 130px vertical slider hugging the right edge */
+  /* top is set in JS to sit just below the lil-gui panel */
+  z-index: 6;
+  box-sizing: content-box; /* keep the canvas at its declared size; padding adds the card frame */
+  padding: 4px;
+  background: rgba(16, 16, 34, 0.85);
+  border: 1px solid rgba(120, 130, 200, 0.3);
+  border-radius: 10px;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+  cursor: grab;
+}
+#view-cube canvas { display: block; }
+
+#view-cube-home {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(120, 130, 200, 0.4);
+  border-radius: 6px;
+  background: rgba(16, 16, 34, 0.85);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  transition: color 0.2s, background 0.2s;
+}
+#view-cube-home:hover { color: #fff; background: rgba(40, 42, 80, 0.95); }
+
 /* 3D Labels */
 .axis-label {
   color: #fff;
