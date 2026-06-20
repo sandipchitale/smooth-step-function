@@ -56,9 +56,45 @@ labelRenderer.domElement.style.top = '0px';
 labelRenderer.domElement.style.pointerEvents = 'none'; // Allow interactions to pass through
 document.body.appendChild(labelRenderer.domElement);
 
+// Orthographic ("isometric"/parallel) camera — same position/orientation as the
+// perspective one, swapped in on toggle. Parallel projection = no foreshortening.
+// Wide near/far slab (near is negative) so the parallel clip volume never slices the
+// scene — orthographic clips along the view axis, unlike a perspective frustum.
+const orthoCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, -2000, 2000);
+let activeCamera: THREE.Camera = camera;
+
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.target.set(30, 15, 0);
+
+// Size the ortho frustum to match the perspective view at the current distance,
+// so flipping projection doesn't jump the scale.
+function syncOrthoToPerspective() {
+    const dist = camera.position.distanceTo(controls.target);
+    const halfH = Math.tan((camera.fov * Math.PI / 180) / 2) * dist;
+    const halfW = halfH * camera.aspect;
+    orthoCamera.top = halfH; orthoCamera.bottom = -halfH;
+    orthoCamera.left = -halfW; orthoCamera.right = halfW;
+    orthoCamera.position.copy(camera.position);
+    orthoCamera.quaternion.copy(camera.quaternion);
+    orthoCamera.zoom = 1;
+    orthoCamera.updateProjectionMatrix();
+}
+
+function setProjection(orthographic: boolean) {
+    if (orthographic) {
+        syncOrthoToPerspective();
+        activeCamera = orthoCamera;
+    } else {
+        // Carry position/orientation back so the view stays continuous.
+        camera.position.copy(orthoCamera.position);
+        camera.quaternion.copy(orthoCamera.quaternion);
+        camera.updateProjectionMatrix();
+        activeCamera = camera;
+    }
+    controls.object = activeCamera;
+    controls.update();
+}
 
 // --- Lights ---
 const ambientLight = new THREE.AmbientLight(0x404040, 2); // Soft white light
@@ -333,6 +369,7 @@ const params = {
   showYZAxis: true, // YZ vertical axis, independent of the grid lines
   showCriticalStrip: true,
   xzGridY: 0,
+  orthographic: false, // false = perspective, true = orthographic (parallel) projection
   showValueLine: true, // the faint connector from the ζ-value label to the red marker
   showArgTrail: false, // projected phasor-tip trail in the XZ floor (depth disambiguation)
   trailWindow: 6,      // ± window in t over which the trail is drawn
@@ -969,6 +1006,23 @@ updateXzPosZAxis();
 
 // --- GUI ---
 const gui = new GUI({ width: 600 });
+// Projection: a radio choice (a mode switch between two named states), not a checkbox.
+const projPanel = document.createElement('div');
+projPanel.id = 'projection-radio';
+projPanel.innerHTML =
+    '<span class="pr-label">Projection</span>' +
+    '<div class="pr-options">' +
+    '<label><input type="radio" name="projection" value="perspective" checked> Perspective</label>' +
+    '<label><input type="radio" name="projection" value="orthographic"> Orthographic</label>' +
+    '</div>';
+projPanel.addEventListener('change', (e) => {
+    const v = (e.target as HTMLInputElement).value;
+    params.orthographic = v === 'orthographic';
+    setProjection(params.orthographic);
+});
+const projChildren = (gui as any).$children as HTMLElement;
+projChildren.insertBefore(projPanel, projChildren.firstChild); // top of the panel
+
 const smoothCtrl = gui.add(params, 'e', 0, 0.99).name('Smoothness (e)').onChange(updateGraph);
 // pi(x) reconstructed from the zeros — pairs with the cyan prime-count staircase.
 gui.add(params, 'showPiApprox').name('π(x) from zeros (yellow)').onChange((v: boolean) => {
@@ -1149,8 +1203,8 @@ setXzGridY(params.xzGridY); // initialise floor position + readout
 function animate() {
   requestAnimationFrame(animate);
   controls.update();
-  renderer.render(scene, camera);
-  labelRenderer.render(scene, camera);
+  renderer.render(scene, activeCamera);
+  labelRenderer.render(scene, activeCamera);
 }
 
 animate();
@@ -1164,8 +1218,14 @@ sidebarToggle?.addEventListener('click', () => {
 
 // --- Window Resize ---
 window.addEventListener('resize', () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
+  const aspect = window.innerWidth / window.innerHeight;
+  camera.aspect = aspect;
   camera.updateProjectionMatrix();
+  // Keep the ortho frustum height, re-derive width from the new aspect.
+  const halfH = (orthoCamera.top - orthoCamera.bottom) / 2;
+  orthoCamera.left = -halfH * aspect;
+  orthoCamera.right = halfH * aspect;
+  orthoCamera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
   labelRenderer.setSize(window.innerWidth, window.innerHeight);
 });

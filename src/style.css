@@ -199,6 +199,27 @@ h1 {
   font-size: 0.8rem;
 }
 
+/* Projection radio group injected into the lil-gui panel */
+#projection-radio {
+  display: flex;
+  align-items: center;
+  /* mirror a lil-gui controller row so the radios sit in the VALUE column */
+  padding: 7px var(--padding, 4px);
+  font-size: 0.76rem;
+  color: rgba(255, 255, 255, 0.9);
+  border-bottom: 1px solid rgba(120, 130, 200, 0.25);
+}
+#projection-radio .pr-label {
+  min-width: var(--name-width, 45%);
+  flex-shrink: 0;
+  padding-right: var(--spacing, 4px);
+  font-weight: 700;
+  color: #9beaff;
+}
+#projection-radio .pr-options { display: flex; gap: 16px; }
+#projection-radio label { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+#projection-radio input[type="radio"] { accent-color: #00ffff; cursor: pointer; margin: 0; }
+
 /* GitHub link — bottom-right, below the vertical slider panel */
 #github-link {
   position: fixed;
