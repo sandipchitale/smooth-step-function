@@ -3,7 +3,6 @@ import './style.css';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import GUI from 'lil-gui';
-// Removed LineSegments2 imports
 
 // --- Configuration ---
 const MAX_PRIME_VALUE = 47;
@@ -105,7 +104,6 @@ pointLight.position.set(50, 50, 50);
 scene.add(pointLight);
 
 // --- Helpers (Grid & Axes) ---
-// --- Helpers (Grid & Axes) ---
 const gridSize = 120; // Increased to cover -60 to 60 in Y
 const gridDivisions = 240; // 0.5 unit resolution
 // Low contrast colors: Center 0x444455, Grid 0x1a1a2e (BG is 0x050510)
@@ -169,7 +167,6 @@ criticalStrip.position.set(0.5, 0, 0.01);
 scene.add(criticalStrip);
 
 // Add Labels for Critical Strip and Critical Line
-// Add Labels for Critical Strip and Critical Line
 // Critical Strip Label at the bottom
 const stripLabelDiv = document.createElement('div');
 stripLabelDiv.className = 'axis-label';
@@ -188,13 +185,19 @@ const lineLabel = new CSS2DObject(lineLabelDiv);
 lineLabel.position.set(-5, 8, 0); // Top Left, above strip label
 scene.add(lineLabel);
 
-// Connector Lines
 // Connector Lines (Cylinders/Tubes)
 function createConnector(start: THREE.Vector3, end: THREE.Vector3, radius: number = 0.02, color: number = 0x888888) {
     const path = new THREE.LineCurve3(start, end);
     const geometry = new THREE.TubeGeometry(path, 1, radius, 8, false);
     const material = new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: 0.5 });
     return new THREE.Mesh(geometry, material);
+}
+
+// Remove a mesh from the scene and release its geometry + material.
+function disposeMesh(m: THREE.Mesh) {
+    scene.remove(m);
+    m.geometry.dispose();
+    (m.material as THREE.Material).dispose();
 }
 
 const connector1 = createConnector(new THREE.Vector3(-4, 4, 0), new THREE.Vector3(0, 4, 0), 0.02);
@@ -374,15 +377,10 @@ const params = {
   showArgTrail: false, // projected phasor-tip trail in the XZ floor (depth disambiguation)
   trailWindow: 6,      // ± window in t over which the trail is drawn
   originShift: 0.5, // Re-origin of the output frame: 0 = Im axis, ½ = critical line
-  // Explicit-formula reconstruction of the prime staircase from the zeros.
-  // Hidden by default; this is an extra "if you're curious" layer.
+  // π(x) reconstructed from the zeros (Riemann). Hidden by default; pairs with the
+  // cyan prime-count staircase as an extra "if you're curious" layer.
   piZeros: 10,            // zeros used in the yellow π(x) reconstruction (pairs with cyan)
   showPiApprox: false,    // off by default; independent top-level toggle
-  // The ψ-based "explicit formula" group below is the extra curiosity layer.
-  showExplicitFormula: false,
-  psiZeros: 10,           // zeros used in the green ψ(x) reconstruction
-  showPsiTrue: true,
-  showPsiApprox: true
 };
 
 const graphMaterial = new THREE.LineBasicMaterial({ color: 0x00ffff, linewidth: 2 }); // Cyan
@@ -615,21 +613,11 @@ function updateGraph() {
 }
 
 // ============================================================================
-// --- Explicit Formula: building the staircase FROM the zeros on the line ---
+// --- Non-trivial zeros of zeta on the critical line ---
 // ============================================================================
-// Riemann/von Mangoldt explicit formula for the Chebyshev function psi(x):
-//
-//   psi(x) = x  -  sum over zeros rho of  x^rho / rho  -  log(2*pi)  -  1/2 log(1 - x^-2)
-//
-// psi(x) = sum_{p^k <= x} log p  is the prime "staircase" weighted by log p,
-// jumping at every prime power. Pairing each zero rho = 1/2 + i*gamma with its
-// conjugate 1/2 - i*gamma collapses x^rho/rho into a real oscillation:
-//
-//   2 Re(x^rho / rho) = sqrt(x) * (cos(gamma ln x) + 2*gamma sin(gamma ln x)) / (1/4 + gamma^2)
-//
-// So each zero on the critical line contributes one decaying wave; summing more
-// zeros makes the smooth curve ring into the exact staircase. The same gamma
-// values plotted vertically on the line (Im(s)) are what generate this curve.
+// The imaginary parts (gamma) of the zeros. Used to plot the zeros vertically on
+// the line, to snap the XZ floor / Origin shift, to drive the green-lock highlights,
+// and as input to the π(x)-from-zeros (Riemann) reconstruction below.
 
 // Imaginary parts (gamma) of the first 50 nontrivial zeros (standard tabulated).
 const nontrivialZerosImag = [
@@ -644,84 +632,6 @@ const nontrivialZerosImag = [
   124.256818554, 127.516683880, 129.578704200, 131.087688531, 133.497737203,
   134.756509753, 138.116042055, 139.736208952, 141.123707404, 143.111845808,
 ];
-
-// True Chebyshev psi(x): cumulative log p over all prime powers p^k <= x.
-const primePowers: { value: number; logP: number }[] = [];
-for (const p of getPrimesUpTo(MAX_X)) {
-  const logP = Math.log(p);
-  for (let pk = p; pk <= MAX_X; pk *= p) {
-    primePowers.push({ value: pk, logP });
-  }
-}
-primePowers.sort((a, b) => a.value - b.value);
-
-function psiTrue(x: number): number {
-  let sum = 0;
-  for (const { value, logP } of primePowers) {
-    if (value <= x) sum += logP;
-    else break;
-  }
-  return sum;
-}
-
-// Explicit-formula approximation of psi(x) using the first N zeros.
-function psiApprox(x: number, N: number): number {
-  if (x <= 1.05) return 0; // formula has a singularity at x = 1; psi(x)=0 below 2 anyway
-  const lnx = Math.log(x);
-  const sqrtx = Math.sqrt(x);
-  let osc = 0;
-  for (let n = 0; n < N; n++) {
-    const g = nontrivialZerosImag[n];
-    const theta = g * lnx;
-    osc += (Math.cos(theta) + 2 * g * Math.sin(theta)) / (0.25 + g * g);
-  }
-  return x - sqrtx * osc - Math.log(2 * Math.PI) - 0.5 * Math.log(1 - 1 / (x * x));
-}
-
-// True psi staircase (orange), computed once.
-const psiTrueMaterial = new THREE.LineBasicMaterial({ color: 0xffaa00, linewidth: 2 });
-const psiTrueGeometry = new THREE.BufferGeometry();
-const psiTruePositions = new Float32Array(STEPS * 3);
-for (let i = 0; i < STEPS; i++) {
-  const x = (i / (STEPS - 1)) * MAX_X;
-  psiTruePositions[i * 3] = x;
-  psiTruePositions[i * 3 + 1] = psiTrue(x);
-  psiTruePositions[i * 3 + 2] = 0;
-}
-psiTrueGeometry.setAttribute('position', new THREE.BufferAttribute(psiTruePositions, 3));
-const psiTrueLine = new THREE.Line(psiTrueGeometry, psiTrueMaterial);
-scene.add(psiTrueLine);
-
-// Explicit-formula reconstruction (green), updated as the zero count changes.
-const psiApproxMaterial = new THREE.LineBasicMaterial({ color: 0x00ff88, linewidth: 2 });
-const psiApproxGeometry = new THREE.BufferGeometry();
-psiApproxGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(STEPS * 3), 3));
-const psiApproxLine = new THREE.Line(psiApproxGeometry, psiApproxMaterial);
-scene.add(psiApproxLine);
-
-// Convergence readout: rides the end of the curve, narrating what the slider does.
-const psiApproxLabel = createLabel('', MAX_X, 0, 0);
-psiApproxLabel.element.style.color = '#00ff88';
-scene.add(psiApproxLabel);
-
-function updatePsiApprox() {
-  const N = Math.min(params.psiZeros, nontrivialZerosImag.length);
-  const pos = psiApproxLine.geometry.attributes.position.array as Float32Array;
-  let peak = 0; // peak |reconstruction − true| → the Gibbs-like ringing amplitude
-  let endY = 0;
-  for (let i = 0; i < STEPS; i++) {
-    const x = (i / (STEPS - 1)) * MAX_X;
-    const yApprox = psiApprox(x, N);
-    pos[i * 3] = x;
-    pos[i * 3 + 1] = yApprox;
-    pos[i * 3 + 2] = 0;
-    if (x > 2) peak = Math.max(peak, Math.abs(yApprox - psiTrue(x))); // skip x≤2 (formula singular)
-    endY = yApprox;
-  }
-  psiApproxLine.geometry.attributes.position.needsUpdate = true;
-  psiApproxLabel.element.textContent = `ψ from ${N} zeros · peak ringing ±${peak.toFixed(1)}`;
-  psiApproxLabel.position.set(MAX_X, endY, 0);
-}
 
 // ============================================================================
 // --- Riemann's formula: the HEIGHT-1 prime count pi(x) from the zeros ---
@@ -867,11 +777,7 @@ function updateIntersection(y: number) {
 
     // Radial line: from the foot on the YZ vertical axis (originShift, y, 0) to the red dot.
     const foot = new THREE.Vector3(params.originShift, y, 0);
-    if (radialLine) {
-        scene.remove(radialLine);
-        radialLine.geometry.dispose();
-        (radialLine.material as THREE.Material).dispose();
-    }
+    if (radialLine) disposeMesh(radialLine);
     if (foot.distanceTo(point) > 1e-4) {
         radialLine = createConnector(foot, point, 0.04, 0xff5555);
         (radialLine.material as THREE.MeshBasicMaterial).opacity = 0.9;
@@ -891,11 +797,7 @@ function updateIntersection(y: number) {
     intersectionLabel.position.copy(labelPos);
     
     // Update Connector
-    if (intersectionConnector) {
-        scene.remove(intersectionConnector);
-        intersectionConnector.geometry.dispose();
-        (intersectionConnector.material as THREE.Material).dispose(); // Clean up material as createConnector makes new one
-    }
+    if (intersectionConnector) disposeMesh(intersectionConnector);
     // Faint connector, same color as the non-axis grid lines (0x1a1a2e); toggleable.
     intersectionConnector = createConnector(labelPos, point, 0.02, 0x1a1a2e);
     intersectionConnector.visible = params.showValueLine;
@@ -904,22 +806,11 @@ function updateIntersection(y: number) {
 
 // Initial update
 updateGraph();
-updatePsiApprox();
 updatePiApprox();
 updateIntersection(params.xzGridY);
 
-// Master gate: each explicit-formula curve is visible only when the whole
-// group is enabled AND its individual toggle is on.
-function applyExplicitFormulaVisibility() {
-  const on = params.showExplicitFormula;
-  psiTrueLine.visible = on && params.showPsiTrue;
-  psiApproxLine.visible = on && params.showPsiApprox;
-  psiApproxLabel.visible = on && params.showPsiApprox;
-}
-applyExplicitFormulaVisibility(); // start hidden
-
-// The pi(x) reconstruction goes with the cyan prime-count, NOT the explicit-
-// formula group, so it has its own independent toggle.
+// The pi(x) reconstruction pairs with the cyan prime-count; it has its own
+// independent toggle and starts hidden.
 piApproxLine.visible = params.showPiApprox;
 piApproxLabel.visible = params.showPiApprox;
 
@@ -972,11 +863,7 @@ function updateOffsetOrigin() {
     offsetOriginLabel.position.copy(labelPos);
     offsetOriginLabel.element.textContent = `offset origin (x = ${x.toFixed(2)})`;
 
-    if (offsetOriginConnector) {
-        scene.remove(offsetOriginConnector);
-        offsetOriginConnector.geometry.dispose();
-        (offsetOriginConnector.material as THREE.Material).dispose();
-    }
+    if (offsetOriginConnector) disposeMesh(offsetOriginConnector);
     offsetOriginConnector = createConnector(labelPos, point, 0.02, 0x00ff00);
     (offsetOriginConnector.material as THREE.MeshBasicMaterial).opacity = 0.4; // faint
     scene.add(offsetOriginConnector);
@@ -1023,29 +910,7 @@ projPanel.addEventListener('change', (e) => {
 const projChildren = (gui as any).$children as HTMLElement;
 projChildren.insertBefore(projPanel, projChildren.firstChild); // top of the panel
 
-const smoothCtrl = gui.add(params, 'e', 0, 0.99).name('Smoothness (e)').onChange(updateGraph);
-// pi(x) reconstructed from the zeros — pairs with the cyan prime-count staircase.
-gui.add(params, 'showPiApprox').name('π(x) from zeros (yellow)').onChange((v: boolean) => {
-    piApproxLine.visible = v;
-    piApproxLabel.visible = v;
-});
-const piZerosCtrl = gui.add(params, 'piZeros', 0, nontrivialZerosImag.length, 1)
-    .name('  └ # zeros (π reconstruction)').onChange(updatePiApprox);
-gui.add(params, 'showXYGrid').name('Show XY Grid').onChange((v: boolean) => {
-    gridHelper.visible = v;
-    inputPlaneLabel.visible = v;
-});
-gui.add(params, 'showXZGrid').name('Show XZ Grid').onChange((v: boolean) => {
-    criticalGridHelper.visible = v;
-    outputPlaneLabel.visible = v;
-});
-// XZ Grid Y is a dedicated VERTICAL slider appended into the panel below (not a lil-gui row).
-gui.add(params, 'showValueLine').name('Show ζ-value label').onChange((v: boolean) => {
-    if (intersectionConnector) intersectionConnector.visible = v;
-    intersectionLabel.visible = v; // label and its connector toggle together
-});
-gui.add(params, 'showArgTrail').name('Show phasor trail').onChange(updateArgTrail);
-const trailWindowCtrl = gui.add(params, 'trailWindow', 1, 25, 1).name('  └ trail ± window (t)').onChange(updateArgTrail);
+// Headline controls — the ½ origin shift, then the staircase smoothing.
 const originShiftCtrl = gui.add(params, 'originShift', 0, 1, 0.01).name('Origin shift (0 = Im axis, ½ = critical line)').onChange((v: number) => {
     updateZetaShift();
     criticalGridHelper.position.x = v; // output-frame origin (center cross) tracks the shift
@@ -1054,6 +919,33 @@ const originShiftCtrl = gui.add(params, 'originShift', 0, 1, 0.01).name('Origin 
     updateOffsetOrigin();              // green offset-origin dot + label follow the shift
     updateXzPosZAxis();                // green +z axis tracks the shift in x
     updateIntersection(params.xzGridY);
+});
+const smoothCtrl = gui.add(params, 'e', 0, 0.99).name('Smoothness (e)').onChange(updateGraph);
+
+// π(x) reconstructed from the zeros (Riemann) — pairs with the cyan prime-count staircase.
+gui.add(params, 'showPiApprox').name('π(x) from zeros (yellow)').onChange((v: boolean) => {
+    piApproxLine.visible = v;
+    piApproxLabel.visible = v;
+});
+const piZerosCtrl = gui.add(params, 'piZeros', 0, nontrivialZerosImag.length, 1)
+    .name('  └ # zeros (π reconstruction)').onChange(updatePiApprox);
+
+// ζ-ribbon readout — the value label and the flattened phasor trail.
+gui.add(params, 'showValueLine').name('Show ζ-value label').onChange((v: boolean) => {
+    if (intersectionConnector) intersectionConnector.visible = v;
+    intersectionLabel.visible = v; // label and its connector toggle together
+});
+gui.add(params, 'showArgTrail').name('Show phasor trail').onChange(updateArgTrail);
+const trailWindowCtrl = gui.add(params, 'trailWindow', 1, 25, 1).name('  └ trail ± window (t)').onChange(updateArgTrail);
+
+// Grids & planes. (XZ Grid Y is the dedicated VERTICAL slider appended below, not a lil-gui row.)
+gui.add(params, 'showXYGrid').name('Show XY Grid').onChange((v: boolean) => {
+    gridHelper.visible = v;
+    inputPlaneLabel.visible = v;
+});
+gui.add(params, 'showXZGrid').name('Show XZ Grid').onChange((v: boolean) => {
+    criticalGridHelper.visible = v;
+    outputPlaneLabel.visible = v;
 });
 gui.add(params, 'showYZGrid').name('Show YZ Grid (output origin)').onChange((v: boolean) => {
     imaginaryGridHelper.visible = v;
@@ -1064,18 +956,6 @@ gui.add(params, 'showYZAxis').name('Show YZ vertical axis').onChange((v: boolean
 gui.add(params, 'showCriticalStrip').name('Show Critical Strip').onChange((v: boolean) => {
     criticalStrip.visible = v;
 });
-
-// Explicit-formula reconstruction of the staircase from the zeros
-const efFolder = gui.addFolder('Explicit Formula — staircases from zeros');
-efFolder.add(params, 'showExplicitFormula').name('Show explicit-formula curves')
-    .onChange(applyExplicitFormulaVisibility);
-efFolder.add(params, 'showPsiApprox').name('ψ(x) from zeros (green)')
-    .onChange(applyExplicitFormulaVisibility);
-const psiZerosCtrl = efFolder.add(params, 'psiZeros', 0, nontrivialZerosImag.length, 1)
-    .name('  └ # zeros (ψ / green)').onChange(updatePsiApprox);
-efFolder.add(params, 'showPsiTrue').name('True ψ(x), log-p steps (orange)')
-    .onChange(applyExplicitFormulaVisibility);
-efFolder.close();
 
 // ============================================================================
 // --- Keyboard operability for all ranges + dedicated VERTICAL XZ-Grid-Y slider ---
@@ -1125,7 +1005,6 @@ enableKeyboard(smoothCtrl);
 enableKeyboard(piZerosCtrl);
 enableKeyboard(trailWindowCtrl);
 enableKeyboard(originShiftCtrl, { snapPoints: [0, 0.5, 1] }); // Shift+Arrow snaps to 0 / ½ / 1
-enableKeyboard(psiZerosCtrl);
 
 // --- Vertical XZ-Grid-Y slider: a narrow strip hugging the right edge ---
 // Snap targets for Shift+↑/↓ are xzSnaps (non-trivial zeros + origin), defined earlier.

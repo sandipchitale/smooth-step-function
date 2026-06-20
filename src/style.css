@@ -149,7 +149,6 @@ h1 {
 .red     { background-color: #ff3030; box-shadow: 0 0 6px #ff3030; }
 .yellow  { background-color: #ffff00; box-shadow: 0 0 6px #ffff00; }
 .green   { background-color: #00ff88; box-shadow: 0 0 6px #00ff88; }
-.orange  { background-color: #ffaa00; box-shadow: 0 0 6px #ffaa00; }
 .gray    { background-color: #8a8a9a; box-shadow: 0 0 6px #8a8a9a; }
 
 .grid-list { margin: 0; }
