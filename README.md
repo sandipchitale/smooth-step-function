@@ -21,6 +21,7 @@ browser — nothing is pre‑baked.
 - [What you are looking at](#what-you-are-looking-at)
   - [The three planes](#the-three-planes)
   - [The objects in the scene](#the-objects-in-the-scene)
+  - [Green: the "lock" signal](#green-the-lock-signal)
   - [Colour key](#colour-key)
 - [Mathematical background](#mathematical-background)
   - [The Riemann zeta function](#the-riemann-zeta-function)
@@ -32,6 +33,7 @@ browser — nothing is pre‑baked.
   - [The value as a phasor: |ζ| and arg ζ](#the-value-as-a-phasor-ζ-and-arg-ζ)
 - [How ζ is computed (and why it is accurate on the line)](#how-ζ-is-computed-and-why-it-is-accurate-on-the-line)
 - [Controls reference](#controls-reference)
+- [Keyboard & snapping](#keyboard--snapping)
 - [Getting started](#getting-started)
 - [Project structure](#project-structure)
 - [Tech stack](#tech-stack)
@@ -72,8 +74,9 @@ of ζ lives on an independent depth (Z) axis**. The immediate payoff:
 
 And because the shift is a **live slider** (`Origin shift`, range `0 → 1`), you can drag
 the entire output frame across the critical strip and watch the value‑ribbon's
-zero‑crossings slide onto the critical line **exactly at ½**, snapping onto the white
-zero markers. The whole output apparatus — the movable floor, the YZ plane, and its
+zero‑crossings slide onto the critical line **exactly at ½**, snapping onto the zero
+markers — at which point the line, ribbon and zeros all turn **green** to mark the
+registration. The whole output apparatus — the movable floor, the YZ plane, and its
 vertical axis — translates together as one rigid frame, so the slider dramatizes a
 *coordinate registration*, not just a moving curve.
 
@@ -117,6 +120,25 @@ drops onto**, and it slides with the origin shift.
 - **Faint magenta phasor trail** *(off by default)* — the value curve over a window of
   `t` flattened into the floor plane, fading out away from the marker; a flat read on the
   ribbon's winding where perspective is hard.
+- **Green offset‑origin dot** — a small dot marking the **output‑frame origin** on the
+  `y = 0` plane (at `x = origin shift`). It slides with the Origin shift, carrying a green
+  label and a leader line drawn perpendicular to the XY plane.
+
+### Green: the "lock" signal
+
+Green is reserved for one thing: **you have landed on a distinguished, discrete
+position.** These are the measure‑zero points you'd otherwise slide right past, so green
+is the unambiguous "you're exactly there" cue — and it's the *same* cue everywhere:
+
+- **Origin shift = ½** → the **critical line, the ζ ribbon, and the non‑trivial zeros all
+  turn green**: the output frame has *registered* onto the critical line.
+- **Floor at `y = 0` or exactly on a non‑trivial zero** → the floor's **z‑axis turns
+  green**, making those special heights stand out as you sweep.
+- The **offset‑origin dot** is permanently green — it *is* the registered origin the
+  others lock onto.
+
+It pairs with snapping (see [Keyboard & snapping](#keyboard--snapping)): the snap puts you
+*on* the special position, and green *confirms* it — detent plus indicator.
 
 ### Colour key
 
@@ -126,6 +148,7 @@ drops onto**, and it slides with the origin shift.
 | 🔵 cyan | prime count π(x) — smoothstep staircase |
 | 🟣 magenta | `ζ(½ + it)` ribbon & its flattened phasor trail |
 | 🔴 red | ζ at the current height — marker + radial line (length = |ζ|) |
+| 🟢 green | a **special, locked position** — offset origin; registration at shift ½; floor on a zero / `y = 0` |
 | ⚫ grey | critical strip, axes & grids |
 
 ---
@@ -247,26 +270,48 @@ Complex arithmetic is provided by a small hand‑rolled `Complex` class
 
 ## Controls reference
 
-All controls live in the [lil‑gui](https://lil-gui.georgealways.com/) panel (top‑right).
-The collapsible legend on the left explains the ideas.
+Controls live in the [lil‑gui](https://lil-gui.georgealways.com/) panel docked to the
+**right edge**, with the **XZ Grid Y sweep as a vertical slider** in its own panel just
+below it (the floor moves up the screen as `t` increases). The collapsible legend on the
+left explains the ideas. **Every slider is keyboard‑operable** — see
+[Keyboard & snapping](#keyboard--snapping).
 
 | Control | What it does | Default |
 |:--------|:-------------|:-------:|
 | **Smoothness (e)** | morph the cyan π(x) staircase between a hard step and a smooth ramp | `0` (crisp) |
+| **π(x) from zeros** | (+ `# zeros`) the yellow Riemann reconstruction of the staircase | off |
 | **Show XY Grid** | the input s‑plane grid + its label | on |
 | **Show XZ Grid** | the output ζ‑plane floor + its label | on |
-| **XZ Grid Y** | sweep the floor up/down to height `t`; the red marker reads ζ at that height | `0` |
+| **XZ Grid Y** *(vertical slider + number field)* | sweep the floor to height `t`; the red marker reads ζ there. ↑/↓ move, Shift+↑/↓ snap to non‑trivial zeros / origin, or type a value | `0` |
 | **Show ζ‑value label** | the `ζ = a + bi · |ζ| · arg` readout and its connector line | on |
 | **Show phasor trail** | the flattened, fading value‑trail in the floor | **off** |
 | **└ trail ± window (t)** | how far in `t` the trail extends around the marker | `6` |
-| **Origin shift** | ⭐ slide the output frame `0 → 1`; `0` = imaginary axis, `½` = critical line | `0.5` |
+| **Origin shift** | ⭐ slide the output frame `0 → 1`; `0` = imaginary axis, `½` = critical line. At ½ the line, ribbon & zeros go **green**. Shift+↑/↓ snaps to `0 / ½ / 1` | `0.5` |
 | **Show YZ Grid (output origin)** | the YZ plane grid lines | **off** |
 | **Show YZ vertical axis** | the YZ plane's grey vertical axis (foot of the radial line) | **on** |
 | **Show Critical Strip** | the semi‑transparent band `0 < Re(s) < 1` | on |
 
-> **Tip:** the most rewarding sequence — drag **Origin shift** to ½, then sweep
-> **XZ Grid Y** upward and watch the red phasor rotate and pinch to zero exactly as the
-> ribbon meets the critical line at each non‑trivial zero.
+> **Tip:** the most rewarding sequence — drag **Origin shift** to ½ (everything special
+> turns green), focus the vertical **XZ Grid Y** slider, then **Shift+↑** repeatedly to
+> hop from zero to zero: at each one the red phasor pinches to nothing and the floor's
+> z‑axis lights up green.
+
+---
+
+## Keyboard & snapping
+
+Every range is operable from the keyboard. Click a slider (or Tab to it) — a cyan outline
+shows focus — then:
+
+- **↑ / ↓** — step the value; **Shift+↑ / ↓** — a coarse jump (×10), or a *snap* where
+  noted below. (`Home`/`End` go to max/min.)
+- **Origin shift** — **Shift+↑ / ↓ snaps to `0`, `½`, `1`** (the imaginary axis, the
+  critical‑line registration, the right strip edge).
+- **XZ Grid Y** (the vertical slider) — **↑ / ↓** nudge by `0.1`; **Shift+↑ / ↓ snap to
+  the non‑trivial zeros and the origin `t = 0`**; or type an exact `t` in the number field.
+
+Snapping and the [green "lock" signal](#green-the-lock-signal) are designed to work
+together: the snap lands you exactly on a distinguished position, and green confirms it.
 
 ---
 
