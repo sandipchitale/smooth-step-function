@@ -959,8 +959,10 @@ scene.add(xzPosZAxis);
 function updateXzPosZAxis() {
     xzPosZAxis.position.x = params.originShift;          // sits on the output-frame origin
     xzPosZAxis.position.y = params.xzGridY;              // rides the floor height
-    // Shown (green) when the floor sits at a special height: y = 0 or a non-trivial zero.
-    xzPosZAxis.visible = xzSnaps.some(p => Math.abs(p - params.xzGridY) < 1e-6);
+    // Shown (green) only at the ½ registration AND when the floor sits at a special
+    // height (y = 0 or a non-trivial zero) — both locks must hold.
+    const atHalf = Math.abs(params.originShift - 0.5) < 1e-6;
+    xzPosZAxis.visible = atHalf && xzSnaps.some(p => Math.abs(p - params.xzGridY) < 1e-6);
 }
 updateXzPosZAxis();
 
