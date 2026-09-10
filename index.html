@@ -22,7 +22,7 @@
           <li><span class="color-box cyan"></span> Prime count&nbsp;π(x) — smoothstep staircase</li>
           <li><span class="color-box magenta"></span> ζ(½&nbsp;+&nbsp;it) ribbon &amp; its flattened phasor trail</li>
           <li><span class="color-box red"></span> ζ at the current height — marker + radial line (length =&nbsp;|ζ|)</li>
-          <li><span class="color-box yellow"></span> π(x) rebuilt from the zeros (Riemann) — label: N &amp; peak ringing</li>
+          <li><span class="color-box yellow"></span> π(x) rebuilt from the zeros — finite-N Riemann approximation; label: N, rms &amp; peak error</li>
           <li><span class="color-box green"></span> Special / locked positions — at ½ registration &amp; the zeros (critical line, offset-origin dot, floor z-axis)</li>
           <li><span class="color-box gray"></span> Critical strip, axes &amp; grids</li>
         </ul>
@@ -41,9 +41,57 @@
         <p class="payoff">Payoff: a non-trivial zero becomes a <b>geometric incidence</b> —
           the magenta ribbon touches the critical line exactly when ζ&nbsp;=&nbsp;0.
           Zeros are simply where the value-ribbon returns to the line.</p>
-        <p class="try">Try it: drag <b>“Origin shift”</b> to slide the output frame 0&nbsp;→&nbsp;1 and
-          watch the zeros snap onto the critical line exactly at&nbsp;½. The whole output frame
-          (XZ floor, YZ plane and its axis) slides as one rigid unit.</p>
+        <p class="try">Try it: drag <b>“σ”</b> across the strip. One slider moves both halves
+          together — the line being sampled, <code>ζ(σ&nbsp;+&nbsp;it)</code>, and the output frame
+          (XZ floor, YZ plane and its axis) that is registered onto it, which slides as one rigid
+          unit. Everything special turns <b>green</b> at&nbsp;½, and only at&nbsp;½ does the ribbon
+          actually return to the line.</p>
+        <p class="caveat"><b>Read this before drawing conclusions.</b> The intersection is
+          <i>not</i> a new property of ζ uncovered by this picture. The coordinate system is
+          deliberately chosen so that ζ&nbsp;=&nbsp;0 maps onto the critical line: plotting the
+          real part as <code>½&nbsp;+&nbsp;Re&nbsp;ζ</code> forces <code>Re&nbsp;ζ&nbsp;=&nbsp;0</code>
+          to land at&nbsp;<code>x&nbsp;=&nbsp;½</code>, by construction. That is a
+          <b>coordinate registration — a representational choice, not a theorem</b>. Its value is
+          that it makes an existing analytic fact perceptible; it proves nothing on its own.</p>
+      </details>
+
+      <!-- Sweeping sigma -->
+      <details class="card accent-magenta">
+        <summary>σ — sweeping across the strip</summary>
+        <p>The <b>σ</b> slider sets <code>Re(s)</code>, so the ribbon becomes
+          <code>ζ(σ&nbsp;+&nbsp;it)</code> for any vertical line in the strip, not just the
+          critical one — and carries the output frame's origin along with it, so the origin
+          always sits on the line being sampled.</p>
+        <p>Why it matters: at <b>σ&nbsp;=&nbsp;½</b> the ribbon repeatedly returns to the line —
+          those returns are the zeros. Move σ off&nbsp;½ and the returns stop: the ribbon
+          generically misses. <b>That is what the Riemann Hypothesis asserts</b> — that
+          <i>every</i> non-trivial zero happens on this one line and nowhere else in the strip.</p>
+        <p class="caveat">This shows what an off-line zero would <i>look</i> like; it is not
+          evidence that none exist. Sampling a line can only ever fail to find one.</p>
+      </details>
+
+      <!-- Emergence of the staircase -->
+      <details class="card accent-yellow">
+        <summary>Watching π(x) emerge from the zeros</summary>
+        <p>Turn on <b>“π(x) from zeros”</b> and press <b>“Animate zeros”</b>. The count sweeps
+          0&nbsp;→&nbsp;50 and the yellow curve is rebuilt at each step.</p>
+        <p>At <b>N&nbsp;=&nbsp;0</b> you get the smooth main term <code>R(x)</code> alone — already
+          a good fit, but featureless. Each zero added contributes one oscillation, and the curve
+          progressively grows the steps of the actual staircase.</p>
+        <p>The label reports <b>two</b> error measures, and they disagree on purpose:</p>
+        <ul class="shift-list">
+          <li><b>rms</b> — falls steadily as zeros are added (≈&nbsp;0.45&nbsp;→&nbsp;0.30 over the
+            50 zeros). This is the sense in which the approximation really is improving.</li>
+          <li><b>peak</b> — stays near&nbsp;1 no matter how many zeros you add. π(x) jumps by a
+            whole unit at each prime, and a truncated sum of smooth oscillations always overshoots
+            a jump by a fixed fraction of its height: a <b>Gibbs phenomenon</b>. Convergence here
+            is <i>not</i> uniform, and no number of zeros fixes the spikes at the primes.</li>
+        </ul>
+        <p>Watching those two numbers move in different directions is the honest version of
+          “the primes emerge from the zeros”.</p>
+        <p class="caveat">This is a <b>finite-zero approximation</b> to Riemann's explicit
+          formula, not the complete identity — see the README. It converges to π(x) only as
+          N&nbsp;→&nbsp;∞; at any finite N the leftover oscillation is expected, not a bug.</p>
       </details>
 
       <!-- Sweeping the XZ plane -->

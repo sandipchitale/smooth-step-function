@@ -4,26 +4,18 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import GUI from 'lil-gui';
 
+import { zeta, CRITICAL_SIGMA } from './math/zeta';
+import { getPrimesUpTo, smoothPrimeCount } from './math/primes';
+import { nontrivialZerosImag } from './math/zeros';
+import { piMainTerm, piZeroTerm } from './math/riemann';
+import { initViewCube } from './ui/viewCube';
+
 // --- Configuration ---
 const MAX_PRIME_VALUE = 47;
 const MAX_X = 55;
 const STEPS = 10000; // Resolution
 
 // --- Primes Calculation ---
-function getPrimesUpTo(limit: number): number[] {
-  const primes: number[] = [];
-  for (let num = 2; num <= limit; num++) {
-    let isPrime = true;
-    for (const p of primes) {
-        if (num % p === 0) {
-            isPrime = false;
-            break;
-        }
-    }
-    if (isPrime) primes.push(num);
-  }
-  return primes;
-}
 
 const primes = getPrimesUpTo(MAX_PRIME_VALUE);
 
@@ -128,19 +120,19 @@ scene.add(criticalGridHelper);
 // Uniform color (no emphasized center axis) — both center and grid lines match.
 const imaginaryGridHelper = new THREE.GridHelper(120, 240, 0x1a1a2e, 0x1a1a2e);
 imaginaryGridHelper.rotation.z = Math.PI / 2; // Rotate 90 deg around Z to align with YZ plane
-imaginaryGridHelper.position.set(0.5, 0, 0); // matches params.originShift; slides with the shift
+imaginaryGridHelper.position.set(0.5, 0, 0); // matches params.sigma; slides with σ
 imaginaryGridHelper.visible = false; // hidden by default (matches params.showYZGrid)
 scene.add(imaginaryGridHelper);
 
 // Vertical axis of the YZ plane (the t-axis at the output-frame origin).
-// Emphasized like the other axes; slides with originShift and shows with the YZ grid.
+// Emphasized like the other axes; slides with σ and shows with the YZ grid.
 const yzAxisMaterial = new THREE.LineBasicMaterial({ color: 0x666666 }); // same gray as the other axes
 const yzAxisGeometry = new THREE.BufferGeometry().setFromPoints([
   new THREE.Vector3(0, -60, 0),
   new THREE.Vector3(0, 60, 0),
 ]);
 const yzAxisLine = new THREE.Line(yzAxisGeometry, yzAxisMaterial);
-yzAxisLine.position.x = 0.5; // matches params.originShift; slides with the shift
+yzAxisLine.position.x = 0.5; // matches params.sigma; slides with σ
 yzAxisLine.visible = true;   // shown by default, independent of the YZ grid lines
 scene.add(yzAxisLine);
 
@@ -376,7 +368,14 @@ const params = {
   showValueLine: true, // the faint connector from the ζ-value label to the red marker
   showArgTrail: false, // projected phasor-tip trail in the XZ floor (depth disambiguation)
   trailWindow: 6,      // ± window in t over which the trail is drawn
-  originShift: 0.5, // Re-origin of the output frame: 0 = Im axis, ½ = critical line
+  // sigma does double duty, and that is the point: it is BOTH the real part of s
+  // (which vertical line of the strip gets sampled, ζ(σ + it)) AND the Re-origin
+  // of the output frame (where that line is drawn). The two are the same number
+  // because the frame is registered onto the line being sampled — so the origin
+  // always sits on the line, and ½ is the critical line.
+  // Sweeping it off ½ is the "what would an off-line zero look like?" control:
+  // the ribbon stops touching the line, and the incidence disappears.
+  sigma: CRITICAL_SIGMA,
   // π(x) reconstructed from the zeros (Riemann). Hidden by default; pairs with the
   // cyan prime-count staircase as an extra "if you're curious" layer.
   piZeros: 10,            // zeros used in the yellow π(x) reconstruction (pairs with cyan)
@@ -394,124 +393,36 @@ scene.add(graphLine);
 
 // --- Math Functions ---
 
-// Simple Complex Number implementation
-class Complex {
-  re: number;
-  im: number;
-  
-  constructor(re: number, im: number) {
-    this.re = re;
-    this.im = im;
-  }
-
-  add(c: Complex): Complex {
-    return new Complex(this.re + c.re, this.im + c.im);
-  }
-
-  sub(c: Complex): Complex {
-    return new Complex(this.re - c.re, this.im - c.im);
-  }
-
-  mul(c: Complex): Complex {
-    return new Complex(this.re * c.re - this.im * c.im, this.re * c.im + this.im * c.re);
-  }
-
-  div(c: Complex): Complex {
-    const denom = c.re * c.re + c.im * c.im;
-    return new Complex(
-      (this.re * c.re + this.im * c.im) / denom,
-      (this.im * c.re - this.re * c.im) / denom
-    );
-  }
-
-  scale(k: number): Complex {
-    return new Complex(this.re * k, this.im * k);
-  }
-
-  abs(): number {
-    return Math.hypot(this.re, this.im);
-  }
-}
-
-// Calculate n^(-s) where s = 0.5 + iy
-function nPowMinusS(n: number, y: number): Complex {
-  // n^(-s) = n^(-0.5) * n^(-iy)
-  // = (1/sqrt(n)) * (cos(y ln n) - i sin(y ln n))  <-- standard calc is exp(-iy ln n) = cos(-y ln n) + i sin(-y ln n)
-  // = (1/sqrt(n)) * (cos(y * Math.log(n)) - i * sin(y * Math.log(n)))   <-- wait, exp(-ix) = cos(x) - i sin(x). Yes.
-  
-  const r = 1.0 / Math.sqrt(n);
-  const theta = -y * Math.log(n);
-  return new Complex(r * Math.cos(theta), r * Math.sin(theta));
-}
-
-// Dirichlet Eta Function (Alternating Zeta), s = 0.5 + iy
-// eta(s) = sum (-1)^(n-1) / n^s
-//
-// Computed via Borwein's algorithm rather than the naive alternating sum.
-// The naive series converges far too slowly on the critical line (Re(s)=0.5):
-// even 200 terms left zeta(0.5) reading ~-1.38 instead of -1.46. Borwein gives
-// ~n digits of accuracy from n terms, so n=60 nails the whole y in [-50,50] range
-// (including ~1e-10 magnitude at the nontrivial zeros).
-//
-//   d_k = n * sum_{i=0}^{k} (n+i-1)! 4^i / ((n-i)! (2i)!)
-//   eta(s) = -1/d_n * sum_{k=0}^{n-1} (-1)^k (d_k - d_n) / (k+1)^s
-function eta(y: number, n: number = 60): Complex {
-  // Build d_k cumulatively. t_0 = 1/n, and
-  // t_i = t_{i-1} * (n+i-1) * 4 * (n-i+1) / ((2i)(2i-1)).
-  const d = new Array<number>(n + 1);
-  let cum = 0;
-  let t = 1 / n;
-  for (let i = 0; i <= n; i++) {
-    cum += t;
-    d[i] = n * cum;
-    const i1 = i + 1;
-    t = t * (n + i1 - 1) * 4 * (n - i1 + 1) / ((2 * i1) * (2 * i1 - 1));
-  }
-
-  const dn = d[n];
-  let sum = new Complex(0, 0);
-  for (let k = 0; k < n; k++) {
-    const sign = (k % 2 === 0) ? 1 : -1;
-    // nPowMinusS(k+1, y) = (k+1)^(-s) = 1 / (k+1)^s
-    sum = sum.add(nPowMinusS(k + 1, y).scale(sign * (d[k] - dn)));
-  }
-  return sum.scale(-1 / dn);
-}
-
-// Zeta(s) = eta(s) / (1 - 2^(1-s))
-function zeta(y: number): Complex {
-  // s_re = 0.5 implicitly
-  // 1 - s = 0.5 - iy
-  // 2^(1-s) = 2^0.5 * 2^(-iy) = sqrt(2) * (cos(y ln 2) - i sin(y ln 2))  (similar logic to n^-s but base 2)
-  const ln2 = Math.log(2);
-  const factorRe = Math.sqrt(2) * Math.cos(-y * ln2);
-  const factorIm = Math.sqrt(2) * Math.sin(-y * ln2);
-  
-  const denom = new Complex(1 - factorRe, -factorIm);
-  const num = eta(y); // Borwein algorithm, n=60 terms is accurate over y in [-50,50]
-  
-  return num.div(denom);
-}
 
 // --- Zeta Function Curve ---
 const zetaMaterial = new THREE.LineBasicMaterial({ color: 0xff00ff, linewidth: 2 }); // Magenta
 const zetaGeometry = new THREE.BufferGeometry();
 const zetaPoints: number[] = [];
-const zetaRe: number[] = []; // cached Re(ζ) per sample; x = originShift + Re(ζ)
+const zetaRe: number[] = []; // cached Re(ζ) per sample; x = σ + Re(ζ)
 const zetaIm: number[] = []; // cached Im(ζ) per sample (used by the projected phasor trail)
 const zetaYs: number[] = []; // cached t = Im(s) per sample
 const ZETA_DT = 0.01;        // sampling step in t; trail reuses these samples
 
-// Range -50 to 50
-for (let y = -50; y <= 50; y += ZETA_DT) {
-    const z = zeta(y);
-    // Plot at (originShift + Re(zeta), y, Im(zeta))
-    // This wraps the "value" around the critical line in 3D space
-    zetaRe.push(z.re);
-    zetaIm.push(z.im);
-    zetaYs.push(y);
-    zetaPoints.push(params.originShift + z.re, y, z.im);
+const ZETA_T_MIN = -50, ZETA_T_MAX = 50;
+const ZETA_SAMPLES = Math.round((ZETA_T_MAX - ZETA_T_MIN) / ZETA_DT) + 1;
+
+// Sample ζ(sigma + it) along t and cache Re/Im per sample.
+// Split out so the sigma slider can re-sample the ribbon; translating the frame does
+// NOT need this (it only translates x, see updateZetaShift).
+function sampleZeta() {
+    zetaRe.length = 0; zetaIm.length = 0; zetaYs.length = 0; zetaPoints.length = 0;
+    for (let i = 0; i < ZETA_SAMPLES; i++) {
+        const y = ZETA_T_MIN + i * ZETA_DT;
+        const z = zeta(params.sigma, y);
+        // Plot at (σ + Re(zeta), y, Im(zeta))
+        // This wraps the "value" around the critical line in 3D space
+        zetaRe.push(z.re);
+        zetaIm.push(z.im);
+        zetaYs.push(y);
+        zetaPoints.push(params.sigma + z.re, y, z.im);
+    }
 }
+sampleZeta();
 zetaGeometry.setAttribute('position', new THREE.Float32BufferAttribute(zetaPoints, 3));
 const zetaLine = new THREE.Line(zetaGeometry, zetaMaterial);
 scene.add(zetaLine);
@@ -520,7 +431,7 @@ scene.add(zetaLine);
 function updateZetaShift() {
     const pos = zetaGeometry.attributes.position.array as Float32Array;
     for (let i = 0; i < zetaRe.length; i++) {
-        pos[i * 3] = params.originShift + zetaRe[i];
+        pos[i * 3] = params.sigma + zetaRe[i];
     }
     zetaGeometry.attributes.position.needsUpdate = true;
     updateArgTrail(); // trail x-positions depend on the shift too
@@ -553,7 +464,7 @@ function updateArgTrail() {
     hi = Math.min(zetaYs.length - 1, hi);
     for (let i = lo; i <= hi; i++) {
         // Flatten onto the floor: keep (X = origin+Re ζ, Z = Im ζ), force y = Y0.
-        pts.push(params.originShift + zetaRe[i], Y0, zetaIm[i]);
+        pts.push(params.sigma + zetaRe[i], Y0, zetaIm[i]);
         // Fade with distance from the red dot (t = Y0): bright at centre, dark at the ends.
         const f = Math.pow(Math.max(0, 1 - Math.abs(zetaYs[i] - Y0) / W), 1.5);
         cols.push(baseR * f, baseG * f, baseB * f);
@@ -565,35 +476,6 @@ function updateArgTrail() {
 
 
 
-// Smoothstep implementation: 3x^2 - 2x^3 for x in [0, 1]
-function smoothStep(edge0: number, edge1: number, x: number): number {
-  const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
-  return t * t * (3 - 2 * t);
-}
-
-function smoothPrimeCount(x: number, e: number): number {
-  let count = 0;
-  for (const p of primes) {
-    if (e === 0) {
-      if (x >= p) count += 1;
-    } else {
-      // Transition range: [p-e, p+e]
-      // smoothstep(edge0, edge1, x)
-      // edge0 = p - e
-      // edge1 = p + e
-      
-      // Optimization: if x is way past p+e, add 1. If way before p-e, add 0.
-      if (x > p + e) {
-        count += 1;
-      } else if (x < p - e) {
-        // count += 0
-      } else {
-        count += smoothStep(p - e, p + e, x);
-      }
-    }
-  }
-  return count;
-}
 
 function updateGraph() {
   const positions = graphLine.geometry.attributes.position.array as Float32Array;
@@ -602,7 +484,7 @@ function updateGraph() {
     const x = (i / (STEPS - 1)) * MAX_X;
     
     // Existing (Cheated) Smooth Count
-    const count = smoothPrimeCount(x, params.e);
+    const count = smoothPrimeCount(primes, x, params.e);
     
     positions[i * 3] = x;
     positions[i * 3 + 1] = count;
@@ -620,18 +502,6 @@ function updateGraph() {
 // and as input to the π(x)-from-zeros (Riemann) reconstruction below.
 
 // Imaginary parts (gamma) of the first 50 nontrivial zeros (standard tabulated).
-const nontrivialZerosImag = [
-  14.134725142, 21.022039639, 25.010857580, 30.424876126, 32.935061588,
-  37.586178159, 40.918719012, 43.327073281, 48.005150881, 49.773832478,
-  52.970321478, 56.446247697, 59.347044003, 60.831778525, 65.112544048,
-  67.079810529, 69.546401711, 72.067157674, 75.704690699, 77.144840069,
-  79.337375020, 82.910380854, 84.735492981, 87.425274613, 88.809111208,
-  92.491899271, 94.651344041, 95.870634228, 98.831194218, 101.317851006,
-  103.725538040, 105.446623052, 107.168611184, 111.029535543, 111.874659177,
-  114.320220915, 116.226680321, 118.790782866, 121.370125002, 122.946829294,
-  124.256818554, 127.516683880, 129.578704200, 131.087688531, 133.497737203,
-  134.756509753, 138.116042055, 139.736208952, 141.123707404, 143.111845808,
-];
 
 // ============================================================================
 // --- Riemann's formula: the HEIGHT-1 prime count pi(x) from the zeros ---
@@ -646,73 +516,6 @@ const nontrivialZerosImag = [
 // exponential integral of a COMPLEX argument, Ei(rho * ln x). Pairing rho with
 // its conjugate makes each zero's contribution real: 2 * Re(li(x^rho)).
 
-const EULER = 0.5772156649015329; // Euler-Mascheroni constant
-
-function cExp(z: Complex): Complex {
-  const e = Math.exp(z.re);
-  return new Complex(e * Math.cos(z.im), e * Math.sin(z.im));
-}
-
-function cLog(z: Complex): Complex {
-  return new Complex(Math.log(z.abs()), Math.atan2(z.im, z.re));
-}
-
-// Complex exponential integral Ei(z).
-// Power series for small |z|; asymptotic series (optimal truncation) for large.
-function Ei(z: Complex): Complex {
-  if (z.abs() < 20) {
-    // Ei(z) = gamma + ln(z) + sum_{k>=1} z^k / (k * k!)
-    let sum = cLog(z).add(new Complex(EULER, 0));
-    let zk = new Complex(1, 0); // running z^k / k!
-    for (let k = 1; k <= 400; k++) {
-      zk = zk.mul(z).scale(1 / k);
-      const add = zk.scale(1 / k);
-      sum = sum.add(add);
-      if (add.abs() < 1e-16 * sum.abs() && k > z.abs()) break;
-    }
-    return sum;
-  }
-  // Ei(z) ~ (e^z / z) * sum_{k>=0} k! / z^k, truncated at the smallest term.
-  const pref = cExp(z).div(z);
-  let sum = new Complex(0, 0);
-  let term = new Complex(1, 0); // k! / z^k
-  let prevMag = Infinity;
-  for (let k = 0; k <= 400; k++) {
-    const mag = term.abs();
-    if (mag > prevMag) break; // asymptotic series starts diverging -> stop
-    sum = sum.add(term);
-    prevMag = mag;
-    term = term.scale(k + 1).div(z);
-  }
-  return pref.mul(sum);
-}
-
-// Mobius function for the small n needed here (n <= log2(MAX_X) ~ 5).
-const mobius = [0, 1, -1, -1, 0, -1, 1, -1, 0, 0, 1];
-
-// Riemann's reconstruction of pi(x) using the first N zeros.
-function piRiemann(x: number, N: number): number {
-  if (x < 2) return 0;
-  const lnx = Math.log(x);
-  const nMax = Math.floor(lnx / Math.LN2); // include n only while x^(1/n) >= 2
-  let total = 0;
-  for (let n = 1; n <= nMax; n++) {
-    const mu = mobius[n];
-    if (mu === 0) continue;
-    const Ln = lnx / n; // ln(x^(1/n))
-    let term = Ei(new Complex(Ln, 0)).re; // li(x^(1/n)) = main term R(x)
-    let zsum = 0;
-    for (let k = 0; k < N; k++) {
-      const g = nontrivialZerosImag[k];
-      // li(x^(rho/n)) = Ei(rho * Ln), rho = 1/2 + i*g; pair with conjugate -> 2 Re
-      zsum += 2 * Ei(new Complex(Ln * 0.5, g * Ln)).re;
-    }
-    term -= zsum;
-    total += (mu / n) * term;
-  }
-  return total;
-}
-
 // pi(x) reconstruction curve (yellow). Ei is expensive, so use a coarser grid.
 const PI_STEPS = 3000;
 const piApproxMaterial = new THREE.LineBasicMaterial({ color: 0xffff00, linewidth: 2 });
@@ -726,26 +529,111 @@ const piApproxLabel = createLabel('', MAX_X, 0, 0);
 piApproxLabel.element.style.color = '#ffff00';
 scene.add(piApproxLabel);
 
-function updatePiApprox() {
-  const N = Math.min(params.piZeros, nontrivialZerosImag.length);
-  const pos = piApproxLine.geometry.attributes.position.array as Float32Array;
-  let peak = 0; // peak |reconstruction − true π(x)| → the ringing amplitude
-  let endY = 0;
-  let pIdx = 0; // running count of primes ≤ x (x increases monotonically)
+// --- The zero-count table -------------------------------------------------
+// Each zero's correction is independent of how many other zeros are in play,
+// so instead of rebuilding the curve for every N we compute each zero's column
+// ONCE and prefix-sum. piTable row N = the reconstruction using N zeros, so
+// changing the count (or animating it) becomes an array copy.
+//
+// Cost: (ZERO_COUNT + 1) x PI_STEPS floats ~ 0.6 MB, built once.
+const PI_XS = new Float64Array(PI_STEPS);
+const PI_TRUE = new Int32Array(PI_STEPS); // true pi(x) at each sample, for the ringing readout
+for (let i = 0, pIdx = 0; i < PI_STEPS; i++) {
+  const x = (i / (PI_STEPS - 1)) * MAX_X;
+  PI_XS[i] = x;
+  while (pIdx < primes.length && primes[pIdx] <= x) pIdx++;
+  PI_TRUE[i] = pIdx;
+}
+
+const piTable = new Float32Array((nontrivialZerosImag.length + 1) * PI_STEPS);
+// Two error measures per N, because they tell opposite (and both true) stories:
+//   rms  -- converges monotonically as zeros are added: the approximation IS improving.
+//   peak -- does NOT converge. pi(x) has unit jumps, and a truncated sum over
+//           zeros always overshoots at a discontinuity by a fixed fraction of the
+//           jump (a Gibbs phenomenon). Reporting peak alone would make the
+//           reconstruction look like it never improves, which is misleading.
+const piPeak = new Float32Array(nontrivialZerosImag.length + 1);
+const piRms = new Float32Array(nontrivialZerosImag.length + 1);
+let piRowsReady = 0;      // rows 0..piRowsReady-1 are filled
+let piBuildHandle = 0;
+
+function piRowError(row: number) {
+  const base = row * PI_STEPS;
+  let peak = 0, sse = 0, n = 0;
   for (let i = 0; i < PI_STEPS; i++) {
-    const x = (i / (PI_STEPS - 1)) * MAX_X;
-    const yApprox = piRiemann(x, N);
-    pos[i * 3] = x;
-    pos[i * 3 + 1] = yApprox;
+    if (PI_XS[i] <= 2) continue; // below the first prime the formula says nothing useful
+    const e = Math.abs(piTable[base + i] - PI_TRUE[i]);
+    peak = Math.max(peak, e);
+    sse += e * e;
+    n++;
+  }
+  piPeak[row] = peak;
+  piRms[row] = n ? Math.sqrt(sse / n) : 0;
+}
+
+/** Fill row 0 (the main term R(x)) synchronously — it is the cheap one. */
+function buildPiRow0() {
+  for (let i = 0; i < PI_STEPS; i++) piTable[i] = piMainTerm(PI_XS[i]);
+  piRowError(0);
+  piRowsReady = 1;
+}
+
+/** Add one more zero's column. Returns false when the table is complete. */
+function buildNextPiRow(): boolean {
+  if (piRowsReady > nontrivialZerosImag.length) return false;
+  const k = piRowsReady - 1;           // the zero being added
+  const prev = (piRowsReady - 1) * PI_STEPS;
+  const cur = piRowsReady * PI_STEPS;
+  for (let i = 0; i < PI_STEPS; i++) {
+    piTable[cur + i] = piTable[prev + i] + piZeroTerm(PI_XS[i], k);
+  }
+  piRowError(piRowsReady);
+  piRowsReady++;
+  return piRowsReady <= nontrivialZerosImag.length;
+}
+
+/**
+ * Build the remaining rows a zero at a time, one per frame, so the UI never
+ * blocks. Rows already built are reused, so this is a no-op once complete.
+ */
+function ensurePiTable() {
+  if (piBuildHandle || piRowsReady > nontrivialZerosImag.length) return;
+  const step = () => {
+    const more = buildNextPiRow();
+    updatePiZerosAvailability();
+    if (params.piZeros === piRowsReady - 1) updatePiApprox(); // keep the live curve current
+    piBuildHandle = more ? requestAnimationFrame(step) : 0;
+  };
+  piBuildHandle = requestAnimationFrame(step);
+}
+
+/** Highest N the table can currently draw. */
+function piMaxReady(): number {
+  return Math.max(0, piRowsReady - 1);
+}
+
+function updatePiApprox() {
+  const N = Math.min(params.piZeros, piMaxReady());
+  const pos = piApproxLine.geometry.attributes.position.array as Float32Array;
+  const base = N * PI_STEPS;
+  for (let i = 0; i < PI_STEPS; i++) {
+    pos[i * 3] = PI_XS[i];
+    pos[i * 3 + 1] = piTable[base + i];
     pos[i * 3 + 2] = 0;
-    while (pIdx < primes.length && primes[pIdx] <= x) pIdx++;
-    if (x > 2) peak = Math.max(peak, Math.abs(yApprox - pIdx)); // pIdx = true π(x)
-    endY = yApprox;
   }
   piApproxLine.geometry.attributes.position.needsUpdate = true;
-  piApproxLabel.element.textContent = `π from ${N} zeros · peak ringing ±${peak.toFixed(1)}`;
-  piApproxLabel.position.set(MAX_X, endY, 0);
+
+  const pending = params.piZeros > N ? ` · computing ${params.piZeros}…` : '';
+  const label = N === 0
+    ? 'R(x) alone, no zeros'
+    : `π from ${N} zero${N === 1 ? '' : 's'}`;
+  // rms falls as zeros are added; peak does not (Gibbs at the unit jumps).
+  piApproxLabel.element.textContent =
+    `${label} · rms ${piRms[N].toFixed(3)} · peak ±${piPeak[N].toFixed(2)}${pending}`;
+  piApproxLabel.position.set(MAX_X, piTable[base + PI_STEPS - 1], 0);
 }
+
+buildPiRow0();
 
 // --- Intersection Visualization ---
 const intersectionMarkerGeometry = new THREE.SphereGeometry(0.1, 16, 16);
@@ -762,21 +650,21 @@ scene.add(intersectionLabel);
 
 let intersectionConnector: THREE.Mesh | null = null;
 // Radial line: perpendicular from the red dot to the YZ vertical axis.
-// Foot at (originShift, t, 0); length = |ζ(½+it)|. Always visible with the marker.
+// Foot at (σ, t, 0); length = |ζ(σ+it)|. Always visible with the marker.
 let radialLine: THREE.Mesh | null = null;
 
 function updateIntersection(y: number) {
-    const z = zeta(y);
-    // Plotting logic matches the curve: x = originShift + Re(zeta), y = y (Im(s)), z = Im(zeta)
-    const point = new THREE.Vector3(params.originShift + z.re, y, z.im);
+    const z = zeta(params.sigma, y);
+    // Plotting logic matches the curve: x = σ + Re(zeta), y = y (Im(s)), z = Im(zeta)
+    const point = new THREE.Vector3(params.sigma + z.re, y, z.im);
 
     intersectionMarker.position.copy(point);
 
     // Projected phasor-tip trail follows the floor height and the shift.
     updateArgTrail();
 
-    // Radial line: from the foot on the YZ vertical axis (originShift, y, 0) to the red dot.
-    const foot = new THREE.Vector3(params.originShift, y, 0);
+    // Radial line: from the foot on the YZ vertical axis (σ, y, 0) to the red dot.
+    const foot = new THREE.Vector3(params.sigma, y, 0);
     if (radialLine) disposeMesh(radialLine);
     if (foot.distanceTo(point) > 1e-4) {
         radialLine = createConnector(foot, point, 0.04, 0xff5555);
@@ -833,7 +721,7 @@ const zeroTs = [...nontrivialZerosImag.map(t => -t), ...nontrivialZerosImag]
 const xzSnaps = [...zeroTs, 0].sort((a, b) => a - b);
 
 // --- Offset-origin marker: the output-frame origin, kept on the y = 0 plane ---
-// Sits at (originShift, 0, 0) and slides in x with the Origin-shift slider.
+// Sits at (σ, 0, 0) and slides in x with the σ slider.
 const offsetOriginMarker = new THREE.Mesh(
     new THREE.SphereGeometry(0.1, 16, 16),
     new THREE.MeshBasicMaterial({ color: 0x00ff00 })
@@ -847,7 +735,7 @@ scene.add(offsetOriginLabel);
 let offsetOriginConnector: THREE.Mesh | null = null;
 
 function updateOffsetOrigin() {
-    const x = params.originShift;
+    const x = params.sigma;
     const point = new THREE.Vector3(x, 0, 0);          // always on the y = 0 plane
     offsetOriginMarker.position.copy(point);
 
@@ -881,15 +769,35 @@ const xzPosZAxis = new THREE.Line(xzPosZAxisGeometry, xzPosZAxisMaterial);
 scene.add(xzPosZAxis);
 
 function updateXzPosZAxis() {
-    xzPosZAxis.position.x = params.originShift;          // sits on the output-frame origin
+    xzPosZAxis.position.x = params.sigma;          // sits on the output-frame origin
     xzPosZAxis.position.y = params.xzGridY;              // rides the floor height
     // Shown (green) only at the ½ registration AND when the floor sits at a special
     // height (y = 0 or a non-trivial zero) — both locks must hold.
-    const atHalf = Math.abs(params.originShift - 0.5) < 1e-6;
+    const atHalf = Math.abs(params.sigma - 0.5) < 1e-6;
     xzPosZAxis.visible = atHalf && xzSnaps.some(p => Math.abs(p - params.xzGridY) < 1e-6);
 }
 updateXzPosZAxis();
 
+
+// --- Live σ readout ---------------------------------------------------------
+// Doubles as the standing scope note for the ½ registration: it states, on
+// screen and permanently, that the incidence is built into the coordinates
+// rather than discovered by them.
+const sigmaNote = document.createElement('div');
+sigmaNote.id = 'sigma-note';
+document.body.appendChild(sigmaNote);
+
+function updateSigmaNote() {
+    const onLine = Math.abs(params.sigma - CRITICAL_SIGMA) < 1e-9;
+    sigmaNote.className = onLine ? 'on-line' : 'off-line';
+    sigmaNote.innerHTML = onLine
+        ? '<span class="sn-head">σ = ½ · on the critical line</span>' +
+          'The ribbon returns to the line at each zero. That incidence is <b>constructed</b>: ' +
+          'plotting x = ½ + Re ζ sends ζ = 0 to x = ½ by definition. A coordinate registration, not a theorem.'
+        : `<span class="sn-head">σ = ${params.sigma.toFixed(2)} · off the critical line</span>` +
+          'ζ(σ + it) generically misses the line here — no incidences. RH says this is true for ' +
+          '<b>every</b> σ ≠ ½ in the strip. Sampling one line cannot prove that.';
+}
 
 // --- GUI ---
 const gui = new GUI({ width: 600 });
@@ -910,25 +818,117 @@ projPanel.addEventListener('change', (e) => {
 const projChildren = (gui as any).$children as HTMLElement;
 projChildren.insertBefore(projPanel, projChildren.firstChild); // top of the panel
 
-// Headline controls — the ½ origin shift, then the staircase smoothing.
-const originShiftCtrl = gui.add(params, 'originShift', 0, 1, 0.01).name('Origin shift (0 = Im axis, ½ = critical line)').onChange((v: number) => {
+// Headline control — σ, then the staircase smoothing.
+//
+// σ is a SINGLE slider doing two things at once, deliberately: it chooses which
+// vertical line of the strip is sampled, ζ(σ + it), and it carries the whole
+// output frame to that line. Splitting them into two sliders let you register
+// the frame onto a line you were not sampling, which is a picture of nothing.
+// Keeping them fused is what makes "the ribbon touches the line" mean something.
+
+// Translate the whole output apparatus to Re = v. Cheap: no ζ re-evaluation.
+function applyOriginShift(v: number) {
     updateZetaShift();
-    criticalGridHelper.position.x = v; // output-frame origin (center cross) tracks the shift
-    imaginaryGridHelper.position.x = v; // YZ plane slides with the shift too
-    yzAxisLine.position.x = v;          // YZ vertical axis slides with the shift too
-    updateOffsetOrigin();              // green offset-origin dot + label follow the shift
-    updateXzPosZAxis();                // green +z axis tracks the shift in x
+    criticalGridHelper.position.x = v; // output-frame origin (center cross) tracks σ
+    imaginaryGridHelper.position.x = v; // YZ plane slides with σ too
+    yzAxisLine.position.x = v;          // YZ vertical axis slides with σ too
+    updateOffsetOrigin();              // green offset-origin dot + label follow σ
+    updateXzPosZAxis();                // green +z axis tracks σ in x
     updateIntersection(params.xzGridY);
-});
+}
+
+// Re-sampling ζ over the whole t range is the expensive half, so it is deferred
+// to a frame; the frame translation above lands immediately, which keeps the
+// drag feeling direct.
+let sigmaPending = 0;
+function applySigma() {
+    sigmaPending = 0;
+    sampleZeta();
+    const pos = zetaGeometry.attributes.position.array as Float32Array;
+    for (let i = 0; i < zetaRe.length; i++) {
+        pos[i * 3] = params.sigma + zetaRe[i];
+        pos[i * 3 + 1] = zetaYs[i];
+        pos[i * 3 + 2] = zetaIm[i];
+    }
+    zetaGeometry.attributes.position.needsUpdate = true;
+    updateArgTrail();
+    updateIntersection(params.xzGridY);
+    updateSigmaNote();
+}
+
+// Range stops at 0.99, not 1: ζ has its pole at s = 1, and the ribbon already
+// blows up to |ζ| ~ 100 near t = 0 by 0.99. 0 is the imaginary axis and is fine.
+const sigmaCtrl = gui.add(params, 'sigma', 0, 0.99, 0.01)
+    .name('σ = Re(s) & output origin (0 = Im axis, ½ = critical line)')
+    .onChange((v: number) => {
+        applyOriginShift(v);
+        if (!sigmaPending) sigmaPending = requestAnimationFrame(applySigma);
+    });
 const smoothCtrl = gui.add(params, 'e', 0, 0.99).name('Smoothness (e)').onChange(updateGraph);
 
 // π(x) reconstructed from the zeros (Riemann) — pairs with the cyan prime-count staircase.
-gui.add(params, 'showPiApprox').name('π(x) from zeros (yellow)').onChange((v: boolean) => {
+const showPiCtrl = gui.add(params, 'showPiApprox').name('π(x) from zeros (yellow)').onChange((v: boolean) => {
     piApproxLine.visible = v;
     piApproxLabel.visible = v;
+    if (v) ensurePiTable(); // start filling the zero table the first time it is shown
 });
 const piZerosCtrl = gui.add(params, 'piZeros', 0, nontrivialZerosImag.length, 1)
-    .name('  └ # zeros (π reconstruction)').onChange(updatePiApprox);
+    .name('  └ # zeros (π reconstruction)')
+    .onChange(() => { stopZeroAnimation(); updatePiApprox(); });
+
+// Reflect table-build progress in the slider's name, so a count that is still
+// being computed reads as "not ready yet" rather than looking broken.
+function updatePiZerosAvailability() {
+    const max = piMaxReady();
+    const suffix = max < nontrivialZerosImag.length ? `  (${max}/${nontrivialZerosImag.length} ready)` : '';
+    piZerosCtrl.name(`  └ # zeros (π reconstruction)${suffix}`);
+}
+
+// --- Watch the staircase emerge from the zeros ------------------------------
+// The headline demonstration: sweep N from 0 upward and the yellow curve goes
+// from the smooth R(x) to something that visibly counts primes. Each frame is
+// just a row lookup in piTable, so this is free once the table is built.
+const zeroAnim = { playing: false, n: 0, secPerZero: 0.18, last: 0 };
+
+function stopZeroAnimation() {
+    if (!zeroAnim.playing) return;
+    zeroAnim.playing = false;
+    animateBtnCtrl.name('▶  Animate zeros  (0 → 50)');
+}
+
+function toggleZeroAnimation() {
+    if (zeroAnim.playing) { stopZeroAnimation(); return; }
+    // Make sure the layer being animated is actually visible.
+    if (!params.showPiApprox) {
+        params.showPiApprox = true;
+        piApproxLine.visible = true;
+        piApproxLabel.visible = true;
+        showPiCtrl.updateDisplay();
+    }
+    zeroAnim.playing = true;
+    zeroAnim.n = 0;
+    zeroAnim.last = performance.now();
+    animateBtnCtrl.name('■  Stop');
+    ensurePiTable();
+}
+
+/** Advance the sweep; called once per frame from animate(). */
+function stepZeroAnimation() {
+    if (!zeroAnim.playing) return;
+    const now = performance.now();
+    if (now - zeroAnim.last < zeroAnim.secPerZero * 1000) return;
+    zeroAnim.last = now;
+    if (zeroAnim.n > piMaxReady()) return; // table still catching up — hold here
+    params.piZeros = zeroAnim.n;
+    piZerosCtrl.updateDisplay();
+    updatePiApprox();
+    if (zeroAnim.n >= nontrivialZerosImag.length) { stopZeroAnimation(); return; }
+    zeroAnim.n++;
+}
+
+const animateBtnCtrl = gui.add({ run: toggleZeroAnimation }, 'run')
+    .name('▶  Animate zeros  (0 → 50)');
+gui.add(zeroAnim, 'secPerZero', 0.04, 0.6, 0.02).name('  └ seconds per zero');
 
 // ζ-ribbon readout — the value label and the flattened phasor trail.
 gui.add(params, 'showValueLine').name('Show ζ-value label').onChange((v: boolean) => {
@@ -1004,7 +1004,7 @@ function enableKeyboard(controller: any, opts: { snapPoints?: number[] } = {}) {
 enableKeyboard(smoothCtrl);
 enableKeyboard(piZerosCtrl);
 enableKeyboard(trailWindowCtrl);
-enableKeyboard(originShiftCtrl, { snapPoints: [0, 0.5, 1] }); // Shift+Arrow snaps to 0 / ½ / 1
+enableKeyboard(sigmaCtrl, { snapPoints: [0, 0.5, 0.99] }); // Shift+Arrow snaps to 0 / ½ / edge
 
 // --- Vertical XZ-Grid-Y slider: a narrow strip hugging the right edge ---
 // Snap targets for Shift+↑/↓ are xzSnaps (non-trivial zeros + origin), defined earlier.
@@ -1078,227 +1078,38 @@ xzNumber.addEventListener('change', () => {
 
 setXzGridY(params.xzGridY); // initialise floor position + readout
 
-// ============================================================================
-// --- ViewCube: a Tinkercad-style navigation widget ---
-// ============================================================================
-// A small overlay (its own scene + renderer) showing a labeled cube that mirrors
-// the main view's orientation. Its 26 regions — 6 faces, 12 edges, 8 corners — are
-// pickable: hovering highlights one, clicking snaps the main camera to that view
-// (positioned at target + dir·distance, looking at the orbit target). Dragging the
-// cube orbits the main view; the home button restores a three-quarter view.
-
-const VIEWCUBE_SIZE = 280; // px
-
-const cubeContainer = document.createElement('div');
-cubeContainer.id = 'view-cube';
-cubeContainer.style.width = `${VIEWCUBE_SIZE}px`;
-document.body.appendChild(cubeContainer);
-
-// Sit in a card directly under the lil-gui panel, to the left of the vertical slider.
-// Track the panel's height (folders/resize) so it stays glued just beneath it.
-function positionViewCube() {
-    cubeContainer.style.top = `${guiEl.getBoundingClientRect().bottom + 8}px`;
-}
-new ResizeObserver(positionViewCube).observe(guiEl);
-window.addEventListener('resize', positionViewCube);
-positionViewCube();
-
-const cubeRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-cubeRenderer.setSize(VIEWCUBE_SIZE, VIEWCUBE_SIZE);
-cubeRenderer.setPixelRatio(window.devicePixelRatio);
-cubeContainer.appendChild(cubeRenderer.domElement);
-
-const cubeScene = new THREE.Scene();
-// Frustum half-width just larger than a cube corner (√3·0.5 ≈ 0.87) so the cube
-// fills the canvas with only a thin margin, instead of floating in whitespace.
-const cubeCamera = new THREE.OrthographicCamera(-1.05, 1.05, 1.05, -1.05, 0.1, 100);
-cubeScene.add(new THREE.AmbientLight(0xffffff, 0.9));
-const cubeKeyLight = new THREE.DirectionalLight(0xffffff, 0.55);
-cubeKeyLight.position.set(3, 5, 4);
-cubeScene.add(cubeKeyLight);
-
-// Face-label textures (light face, dark text). BoxGeometry material order is
-// +X, -X, +Y, -Y, +Z, -Z → RIGHT, LEFT, TOP, BOTTOM, FRONT, BACK.
-function makeFaceTexture(text: string): THREE.CanvasTexture {
-    const s = 128;
-    const c = document.createElement('canvas');
-    c.width = c.height = s;
-    const ctx = c.getContext('2d')!;
-    ctx.fillStyle = '#eef0fa';
-    ctx.fillRect(0, 0, s, s);
-    ctx.strokeStyle = 'rgba(80,90,140,0.45)';
-    ctx.lineWidth = 6;
-    ctx.strokeRect(3, 3, s - 6, s - 6);
-    ctx.fillStyle = '#222a4a';
-    ctx.font = 'bold 22px Inter, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(text, s / 2, s / 2);
-    const tex = new THREE.CanvasTexture(c);
-    tex.anisotropy = 4;
-    return tex;
+// Keep the σ readout docked beneath the ViewCube widget. Driven by resize
+// observers rather than the render loop so it never forces a layout per frame.
+function positionSigmaNote() {
+    const cube = document.getElementById('view-cube');
+    if (!cube) return;
+    const r = cube.getBoundingClientRect();
+    sigmaNote.style.left = `${r.left}px`;
+    sigmaNote.style.width = `${r.width}px`;
+    // Prefer sitting under the cube; if that would run off the bottom, tuck it
+    // above instead so the note is never clipped on a short viewport.
+    const h = sigmaNote.offsetHeight || 104;
+    const below = r.bottom + 8;
+    sigmaNote.style.top = `${below + h <= window.innerHeight - 8 ? below : Math.max(8, r.top - h - 8)}px`;
 }
 
-const cubeFaceLabels = ['RIGHT', 'LEFT', 'TOP', 'BOTTOM', 'FRONT', 'BACK'];
-const cubeMaterials = cubeFaceLabels.map(t => new THREE.MeshLambertMaterial({ map: makeFaceTexture(t) }));
-const cubeMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), cubeMaterials);
-cubeScene.add(cubeMesh);
-const cubeEdges = new THREE.LineSegments(
-    new THREE.EdgesGeometry(cubeMesh.geometry),
-    new THREE.LineBasicMaterial({ color: 0x2a3358 })
-);
-cubeScene.add(cubeEdges);
-
-// 26 pickable zones: enumerate (dx,dy,dz) ∈ {-1,0,1}³ minus the origin. Each zone
-// is a thin slab flush to the surface; #non-zero components → face(1)/edge(2)/corner(3).
-const ZONE_BASE = 0x6fb7ff, ZONE_HI = 0x00ffff;
-const CUBE_H = 0.5, ZONE_BAND = 0.2, ZONE_INNER = 1 - 2 * ZONE_BAND; // face inner = 0.6
-const cubeZones: THREE.Mesh[] = [];
-for (let dx = -1; dx <= 1; dx++)
-for (let dy = -1; dy <= 1; dy++)
-for (let dz = -1; dz <= 1; dz++) {
-    if (dx === 0 && dy === 0 && dz === 0) continue;
-    const d = [dx, dy, dz];
-    const size = d.map(c => (c === 0 ? ZONE_INNER : ZONE_BAND));
-    const pos = d.map(c => c * (CUBE_H - ZONE_BAND / 2)); // slab flush to its face
-    const zone = new THREE.Mesh(
-        new THREE.BoxGeometry(size[0], size[1], size[2]),
-        new THREE.MeshBasicMaterial({ color: ZONE_BASE, transparent: true, opacity: 0 })
-    );
-    zone.position.set(pos[0] * 1.01, pos[1] * 1.01, pos[2] * 1.01); // just proud of the face
-    zone.userData.dir = new THREE.Vector3(dx, dy, dz).normalize();
-    cubeScene.add(zone);
-    cubeZones.push(zone);
-}
-
-// Orientation sync: place the cube camera along the main view's direction so the
-// fixed, axis-aligned cube presents the same orientation as the scene. Read the
-// ACTIVE camera (the one OrbitControls is driving) so the cube also tracks free
-// rotation in orthographic mode, where the perspective camera is left frozen.
-const cubeOffset = new THREE.Vector3();
-function syncCubeOrientation() {
-    const cam = activeCamera;
-    cubeOffset.copy(cam.position).sub(controls.target).normalize().multiplyScalar(5);
-    cubeCamera.position.copy(cubeOffset);
-    cubeCamera.up.copy(cam.up);
-    cubeCamera.lookAt(0, 0, 0);
-    cubeCamera.updateMatrixWorld();
-}
-
-// Picking + hover.
-const cubeRay = new THREE.Raycaster();
-const cubePtr = new THREE.Vector2();
-let hoveredZone: THREE.Mesh | null = null;
-
-function pickZone(ev: PointerEvent): THREE.Mesh | null {
-    const r = cubeRenderer.domElement.getBoundingClientRect();
-    cubePtr.x = ((ev.clientX - r.left) / r.width) * 2 - 1;
-    cubePtr.y = -((ev.clientY - r.top) / r.height) * 2 + 1;
-    cubeRay.setFromCamera(cubePtr, cubeCamera);
-    const hit = cubeRay.intersectObjects(cubeZones, false)[0];
-    return hit ? (hit.object as THREE.Mesh) : null;
-}
-
-function setCubeHover(z: THREE.Mesh | null) {
-    if (hoveredZone === z) return;
-    if (hoveredZone) (hoveredZone.material as THREE.MeshBasicMaterial).opacity = 0;
-    hoveredZone = z;
-    if (hoveredZone) {
-        const m = hoveredZone.material as THREE.MeshBasicMaterial;
-        m.color.set(ZONE_HI);
-        m.opacity = 0.45;
-    }
-}
-
-// Camera snap animation toward a direction (keeps the current orbit distance).
-const WORLD_UP = new THREE.Vector3(0, 1, 0);
-let cubeTween: { from: THREE.Vector3; to: THREE.Vector3; fromUp: THREE.Vector3; toUp: THREE.Vector3; t0: number; dur: number } | null = null;
-
-function snapToDir(dir: THREE.Vector3) {
-    const n = dir.clone().normalize();
-    const dist = camera.position.distanceTo(controls.target);
-    const to = controls.target.clone().add(n.clone().multiplyScalar(dist));
-    // Up is world-up, except a straight top/bottom view (dir ∥ Y) would gimbal → use Z.
-    const toUp = Math.abs(n.dot(WORLD_UP)) > 0.99
-        ? new THREE.Vector3(0, 0, n.y > 0 ? -1 : 1)
-        : WORLD_UP.clone();
-    cubeTween = { from: camera.position.clone(), to, fromUp: camera.up.clone(), toUp, t0: performance.now(), dur: 450 };
-    controls.enabled = false; // block orbit input mid-flight
-}
-
-function updateCubeTween() {
-    if (!cubeTween) return;
-    const k = Math.min(1, (performance.now() - cubeTween.t0) / cubeTween.dur);
-    const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2; // easeInOutQuad
-    camera.position.lerpVectors(cubeTween.from, cubeTween.to, e);
-    camera.up.lerpVectors(cubeTween.fromUp, cubeTween.toUp, e).normalize();
-    camera.lookAt(controls.target);
-    if (activeCamera === orthoCamera) syncOrthoToPerspective();
-    if (k >= 1) {
-        cubeTween = null;
-        controls.enabled = true;
-        controls.update();
-    }
-}
-
-// Drag the cube to orbit the main view (spherical around the orbit target).
-const _orbitOff = new THREE.Vector3();
-const _orbitSph = new THREE.Spherical();
-function orbitMain(dxPix: number, dyPix: number) {
-    if (cubeTween) return;
-    _orbitOff.copy(camera.position).sub(controls.target);
-    _orbitSph.setFromVector3(_orbitOff);
-    _orbitSph.theta -= dxPix * 0.01;
-    _orbitSph.phi = Math.max(0.001, Math.min(Math.PI - 0.001, _orbitSph.phi - dyPix * 0.01));
-    _orbitOff.setFromSpherical(_orbitSph);
-    camera.position.copy(controls.target).add(_orbitOff);
-    camera.up.set(0, 1, 0);
-    camera.lookAt(controls.target);
-    if (activeCamera === orthoCamera) syncOrthoToPerspective();
-    controls.update();
-}
-
-const cubeDom = cubeRenderer.domElement;
-let cubeDownX = 0, cubeDownY = 0, cubeDragging = false, cubeMoved = false;
-cubeDom.addEventListener('pointerdown', (ev) => {
-    cubeDragging = true; cubeMoved = false;
-    cubeDownX = ev.clientX; cubeDownY = ev.clientY;
-    cubeDom.setPointerCapture(ev.pointerId);
-    cubeContainer.style.cursor = 'grabbing';
+// --- ViewCube (see src/ui/viewCube.ts) ---
+const updateViewCube = initViewCube({
+    anchorEl: guiEl,
+    camera,
+    controls,
+    getActiveCamera: () => activeCamera,
+    syncOrthoIfActive: () => { if (activeCamera === orthoCamera) syncOrthoToPerspective(); },
 });
-cubeDom.addEventListener('pointermove', (ev) => {
-    if (cubeDragging) {
-        if (!cubeMoved && Math.hypot(ev.clientX - cubeDownX, ev.clientY - cubeDownY) > 4) cubeMoved = true;
-        if (cubeMoved) orbitMain(ev.movementX, ev.movementY);
-    } else {
-        setCubeHover(pickZone(ev));
-        cubeContainer.style.cursor = hoveredZone ? 'pointer' : 'grab';
-    }
-});
-cubeDom.addEventListener('pointerup', (ev) => {
-    if (cubeDragging && !cubeMoved) {
-        const z = pickZone(ev);
-        if (z) snapToDir(z.userData.dir as THREE.Vector3);
-    }
-    cubeDragging = false;
-    cubeContainer.style.cursor = 'grab';
-});
-cubeDom.addEventListener('pointerleave', () => { if (!cubeDragging) setCubeHover(null); });
 
-// Home button → a pleasant three-quarter view (front-right-top).
-const cubeHomeBtn = document.createElement('button');
-cubeHomeBtn.id = 'view-cube-home';
-cubeHomeBtn.title = 'Home view';
-cubeHomeBtn.setAttribute('aria-label', 'Home view');
-cubeHomeBtn.textContent = '⌂';
-cubeHomeBtn.addEventListener('click', () => snapToDir(new THREE.Vector3(1, 0.7, 1)));
-cubeContainer.appendChild(cubeHomeBtn);
-
-function updateViewCube() {
-    updateCubeTween();
-    syncCubeOrientation();
-    cubeRenderer.render(cubeScene, cubeCamera);
-}
+// The note docks under the cube, so re-place it whenever the cube moves.
+const viewCubeEl = document.getElementById('view-cube');
+if (viewCubeEl) new ResizeObserver(positionSigmaNote).observe(viewCubeEl);
+new ResizeObserver(positionSigmaNote).observe(guiEl);
+window.addEventListener('resize', positionSigmaNote);
+positionSigmaNote();
+updateSigmaNote();
+updatePiZerosAvailability();
 
 // --- Animation Loop ---
 function animate() {
@@ -1307,6 +1118,7 @@ function animate() {
   renderer.render(scene, activeCamera);
   labelRenderer.render(scene, activeCamera);
   updateViewCube();
+  stepZeroAnimation();
 }
 
 animate();

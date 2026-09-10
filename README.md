@@ -30,6 +30,8 @@ browser — nothing is pre‑baked.
   - [Zeros: trivial and non‑trivial](#zeros-trivial-and-non-trivial)
   - [The Riemann Hypothesis](#the-riemann-hypothesis)
   - [Counting primes: π(x)](#counting-primes-πx)
+  - [Rebuilding π(x) from the zeros](#rebuilding-πx-from-the-zeros)
+  - [σ: why the critical line is the whole story](#σ-why-the-critical-line-is-the-whole-story)
   - [The value as a phasor: |ζ| and arg ζ](#the-value-as-a-phasor-ζ-and-arg-ζ)
 - [How ζ is computed (and why it is accurate on the line)](#how-ζ-is-computed-and-why-it-is-accurate-on-the-line)
 - [Controls reference](#controls-reference)
@@ -73,7 +75,7 @@ of ζ lives on an independent depth (Z) axis**. The immediate payoff:
 > magenta value‑ribbon physically touches the critical line.** Zeros stop being a number
 > you read off a label and become a *place where two things coincide*.
 
-And because the shift is a **live slider** (`Origin shift`, range `0 → 1`), you can drag
+And because the shift is a **live slider** (`σ = Re(s)`, range `0 → 0.99`), you can drag
 the entire output frame across the critical strip and watch the value‑ribbon's
 zero‑crossings slide onto the critical line **exactly at ½**, snapping onto the zero
 markers — at which point the line, ribbon and zeros all turn **green** to mark the
@@ -100,7 +102,7 @@ know) an original way to encode it.
 The XY plane holds the primes, the prime‑counting staircase, and the zeros. The XZ
 plane is a **sweepable floor**: raise or lower it to a height `t` and read off the value
 of ζ at that point. The YZ plane's grey vertical axis is the **foot the radial line
-drops onto**, and it slides with the origin shift.
+drops onto**, and it slides with σ.
 
 ### The objects in the scene
 
@@ -122,7 +124,7 @@ drops onto**, and it slides with the origin shift.
   `t` flattened into the floor plane, fading out away from the marker; a flat read on the
   ribbon's winding where perspective is hard.
 - **Green offset‑origin dot** — a small dot marking the **output‑frame origin** on the
-  `y = 0` plane (at `x = origin shift`). It slides with the Origin shift, carrying a green
+  `y = 0` plane (at `x = σ`). It slides with σ, carrying a green
   label and a leader line drawn perpendicular to the XY plane.
 
 ### Green: the "lock" signal
@@ -131,7 +133,7 @@ Green is reserved for one thing: **you have landed on a distinguished, discrete
 position.** These are the measure‑zero points you'd otherwise slide right past, so green
 is the unambiguous "you're exactly there" cue — and it's the *same* cue everywhere:
 
-- **Origin shift = ½** → the **critical line, the ζ ribbon, and the non‑trivial zeros all
+- **σ = ½** → the **critical line, the ζ ribbon, and the non‑trivial zeros all
   turn green**: the output frame has *registered* onto the critical line.
 - **Floor at `y = 0` or exactly on a non‑trivial zero** → the floor's **z‑axis turns
   green**, making those special heights stand out as you sweep.
@@ -232,6 +234,70 @@ In the scene, π(x) is the **cyan staircase**, rendered with an adjustable
 [smoothstep](https://en.wikipedia.org/wiki/Smoothstep) so you can morph between a hard
 step function and a smooth curve with the `Smoothness (e)` slider.
 
+### Rebuilding π(x) from the zeros
+
+The **yellow curve** is π(x) reconstructed *from the zeros alone* — the sense in which the
+zeros "know" where the primes are. What the code computes is
+
+```
+π(x)  ≈  R(x)  −  Σ  R(x^ρ)        ρ = ½ + iγ  ranges over the first N zeros
+                 ρ
+
+R(w)  =  Σ  μ(n)/n · li(w^(1/n))    li(w) = Ei(ln w)
+        n≥1
+```
+
+`R` is [Riemann's R function](https://en.wikipedia.org/wiki/Riemann_hypothesis#Riemann's_explicit_formula);
+`μ` is the [Möbius function](https://en.wikipedia.org/wiki/M%C3%B6bius_function) and the
+sum over `n` is the [Möbius inversion](https://en.wikipedia.org/wiki/M%C3%B6bius_inversion_formula)
+that turns a statement about `J(x)` into one about `π(x)`. For `w = x^ρ` this needs the
+[exponential integral](https://en.wikipedia.org/wiki/Exponential_integral) of a **complex**
+argument, `Ei(ρ ln x)`; pairing each `ρ` with its conjugate makes every zero's contribution
+real. See [`src/math/riemann.ts`](src/math/riemann.ts).
+
+> ### ⚠️ What this is, and what it is not
+>
+> This is a **finite‑zero approximation to Riemann's explicit formula — not the complete
+> identity.** Please do not quote the expression above as "the formula for π(x)".
+>
+> - The classical explicit formula is naturally stated for
+>   [`J(x) = Σ_{pᵏ ≤ x} 1/k`](https://en.wikipedia.org/wiki/Prime-counting_function#Other_prime-counting_functions),
+>   with Möbius inversion relating it to `π(x)`. The full identity also carries the pole
+>   term, the contribution of the **trivial** zeros, and a constant. Those are **omitted
+>   here** — over the displayed range `x ∈ [0, 55]` they sit far below the error from
+>   truncating the zero sum, but omitted is omitted.
+> - It is an equality only in the limit `N → ∞`. At any finite `N` the curve oscillates
+>   around the true staircase. That leftover ringing is the *subject* of the
+>   visualisation, not a defect in it.
+> - The zeros are read from a **table of the first 50**, taken as lying exactly on the
+>   critical line. That they do is verified far past this range — but it is verification,
+>   not proof.
+
+**Two error numbers, moving in opposite directions.** The label on the yellow curve reports
+both, because either one alone would mislead:
+
+| | over N = 0 → 50 | what it means |
+|:--|:--|:--|
+| **rms** | falls ≈ `0.447 → 0.298` | the approximation genuinely *is* improving as zeros are added |
+| **peak** | stays ≈ `1.1`, never settles | π(x) jumps by a **whole unit** at each prime, and a truncated sum of smooth oscillations always overshoots a jump by a fixed fraction of its height — a [Gibbs phenomenon](https://en.wikipedia.org/wiki/Gibbs_phenomenon). Convergence is **not uniform**, and no number of zeros removes the spikes at the primes |
+
+Watching those two numbers disagree while the staircase visibly sharpens is the honest
+version of "the primes emerge from the zeros".
+
+### σ: why the critical line is the whole story
+
+The **σ slider** sets `Re(s)`, so the magenta ribbon becomes `ζ(σ + it)` along *any*
+vertical line in the strip, not just `σ = ½`.
+
+At `σ = ½` the ribbon repeatedly returns to the line — those returns are the zeros. Move σ
+off ½ and the returns stop: the ribbon generically misses. **That contrast is the content
+of the Riemann Hypothesis** — every non‑trivial zero happens on this one line and nowhere
+else in the strip.
+
+> This shows what an off‑line zero *would look like*. It is not evidence that none exist:
+> sampling a line can only ever fail to find one. A visualisation can build intuition here;
+> it cannot supply the analytic argument a proof would need.
+
 ### The value as a phasor: |ζ| and arg ζ
 
 Any complex number can be written in **polar form** `r·e^{iθ}`, with **modulus**
@@ -283,9 +349,12 @@ The panel is ordered with the headline controls first:
 | Control | What it does | Default |
 |:--------|:-------------|:-------:|
 | **Projection** | switch the camera between **perspective** and **orthographic** (parallel, no foreshortening — good for the axis‑aligned ViewCube snaps) | perspective |
-| **Origin shift** | ⭐ slide the output frame `0 → 1`; `0` = imaginary axis, `½` = critical line. At ½ the line, ribbon & zeros go **green**. Shift+↑/↓ snaps to `0 / ½ / 1` | `0.5` |
+| **σ = Re(s)** | ⭐ one slider, two jobs: it chooses the vertical line of the strip that gets sampled, `ζ(σ + it)`, **and** carries the output frame (XZ floor, YZ plane, its axis) onto that line. `0` = imaginary axis, `½` = critical line. At ½ the line, ribbon & zeros go **green**, and only there does the ribbon return to the line. Range stops at `0.99` — ζ has its pole at `s = 1`. Shift+↑/↓ snaps to `0 / ½ / 0.99` | `0.5` |
 | **Smoothness (e)** | morph the cyan π(x) staircase between a hard step and a smooth ramp | `0` (crisp) |
-| **π(x) from zeros** | (+ `# zeros`) the yellow Riemann reconstruction of the staircase | off |
+| **π(x) from zeros** | the yellow [finite‑N Riemann reconstruction](#rebuilding-πx-from-the-zeros) of the staircase. Switching it on starts building the zero table in the background | off |
+| **└ # zeros** | how many zeros the reconstruction uses, `0 → 50`. `0` is the smooth main term `R(x)` alone. The row shows `(n/50 ready)` while the table is still building | `10` |
+| **▶ Animate zeros** | sweep the count `0 → 50` and watch the staircase grow out of the zeros. Each frame is a table lookup, so the sweep is smooth | — |
+| **└ seconds per zero** | pace of that sweep | `0.18` |
 | **Show ζ‑value label** | the `ζ = a + bi · |ζ| · arg` readout and its connector line | on |
 | **Show phasor trail** | the flattened, fading value‑trail in the floor | **off** |
 | **└ trail ± window (t)** | how far in `t` the trail extends around the marker | `6` |
@@ -296,7 +365,7 @@ The panel is ordered with the headline controls first:
 | **Show YZ vertical axis** | the YZ plane's grey vertical axis (foot of the radial line) | **on** |
 | **Show Critical Strip** | the semi‑transparent band `0 < Re(s) < 1` | on |
 
-> **Tip:** the most rewarding sequence — drag **Origin shift** to ½ (everything special
+> **Tip:** the most rewarding sequence — leave **σ** at ½ (everything special
 > turns green), focus the vertical **XZ Grid Y** slider, then **Shift+↑** repeatedly to
 > hop from zero to zero: at each one the red phasor pinches to nothing and the floor's
 > z‑axis lights up green.
@@ -328,7 +397,7 @@ shows focus — then:
 
 - **↑ / ↓** — step the value; **Shift+↑ / ↓** — a coarse jump (×10), or a *snap* where
   noted below. (`Home`/`End` go to max/min.)
-- **Origin shift** — **Shift+↑ / ↓ snaps to `0`, `½`, `1`** (the imaginary axis, the
+- **σ = Re(s)** — **Shift+↑ / ↓ snaps to `0`, `½`, `0.99`** (the imaginary axis, the
   critical‑line registration, the right strip edge).
 - **XZ Grid Y** (the vertical slider) — **↑ / ↓** nudge by `0.1`; **Shift+↑ / ↓ snap to
   the non‑trivial zeros and the origin `t = 0`**; or type an exact `t` in the number field.
@@ -368,19 +437,30 @@ site works under a GitHub Pages project path.
 
 ```
 smooth-step-function/
-├── index.html        # page shell + the collapsible left-hand legend (the cards)
+├── index.html          # page shell + the collapsible left-hand legend (the cards)
 ├── src/
-│   ├── main.ts       # everything: Complex/zeta math, scene, geometry, GUI, interaction
-│   └── style.css     # sidebar, legend cards, control panels, ViewCube card, 3-D labels
-├── vite.config.ts    # Vite config (GitHub Pages base path)
+│   ├── math/           # pure mathematics — no Three.js, no DOM
+│   │   ├── complex.ts  #   Complex arithmetic + the complex exponential integral Ei
+│   │   ├── zeta.ts     #   Dirichlet eta via Borwein, then eta -> zeta, for any sigma
+│   │   ├── primes.ts   #   sieve, smoothstep, the (optionally smoothed) staircase
+│   │   ├── zeros.ts    #   tabulated imaginary parts of the first 50 nontrivial zeros
+│   │   └── riemann.ts  #   finite-N reconstruction of pi(x) from the zeros
+│   ├── ui/
+│   │   └── viewCube.ts # the 26-region navigation widget (own scene + renderer)
+│   ├── main.ts         # the scene: geometry, labels, cameras, GUI, interaction
+│   └── style.css       # sidebar, legend cards, control panels, ViewCube card, 3-D labels
+├── vite.config.ts      # Vite config (GitHub Pages base path)
 ├── tsconfig.json
 └── package.json
 ```
 
-It is deliberately a **single‑file scene** (`src/main.ts`): the maths (the `Complex`
-class, the eta/zeta evaluator), the Three.js scene graph, the
-[CSS2DRenderer](https://threejs.org/docs/#examples/en/renderers/CSS2DRenderer) labels,
-and the lil‑gui wiring all live together so the data‑flow is easy to follow.
+**`src/math/` depends on nothing.** No Three.js, no DOM, no app state — so the ζ evaluator
+and the reconstruction can be lifted out, reused, or checked on their own, independently of
+the visualisation. That separation is the point: the mathematics should be auditable
+without reading a scene graph.
+
+`src/main.ts` keeps the scene itself in one file — geometry, labels, cameras, GUI wiring —
+so the data‑flow from a slider to a buffer update stays easy to follow.
 
 ---
 
@@ -434,6 +514,18 @@ and the lil‑gui wiring all live together so the data‑flow is easy to follow.
   it is an **original representational convention** — a way of encoding the value so that
   a zero becomes a visible incidence — **not** a new mathematical result. That distinction
   is part of what makes it honest *and* useful.
+  Stated plainly, and repeated in the app itself: **the intersection is not a property of ζ
+  that this picture uncovered.** The coordinate system is deliberately chosen so that
+  `ζ = 0` maps onto the critical line — plotting the real part as `½ + Re ζ` forces
+  `Re ζ = 0` to land at `x = ½`, by construction. The cleverness is in choosing the
+  encoding; it makes an existing analytic fact perceptible, and proves nothing on its own.
+- The **π(x) reconstruction is a finite‑zero approximation** to Riemann's explicit formula,
+  not the complete identity — the pole term, the trivial zeros, and a constant are omitted.
+  See [Rebuilding π(x) from the zeros](#rebuilding-πx-from-the-zeros) for exactly what is
+  and is not included.
+- **Nothing here bears on proving RH.** Sweeping σ shows what an off‑line zero *would* look
+  like; failing to see one along sampled lines is not evidence that none exists. A picture
+  can build intuition; the proof would still need a rigorous analytic argument on top.
 - 3‑D perspective makes depth (the `Im ζ` excursion) inherently hard to read from a still
   frame; rotate the scene, and use the phasor trail, the radial line, and the live readout
   together rather than relying on the ribbon's apparent depth alone.
