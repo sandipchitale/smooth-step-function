@@ -98,27 +98,60 @@ scene.add(pointLight);
 // --- Helpers (Grid & Axes) ---
 const gridSize = 120; // Increased to cover -60 to 60 in Y
 const gridDivisions = 240; // 0.5 unit resolution
-// Low contrast colors: Center 0x444455, Grid 0x1a1a2e (BG is 0x050510)
-const gridHelper = new THREE.GridHelper(gridSize, gridDivisions, 0x444455, 0x1a1a2e);
+// Low contrast colors: Center 0x444455, integer lines 0x1a1a2e, half-integer lines
+// fainter still (0x0c0c1a) — BG is 0x050510. GridHelper only supports a "center" vs
+// "everything else" color, which drew the 0.5 lines as strongly as the integer ones
+// and made the step function look like it was stepping by 2. This builds the same
+// two crossed sets of lines as GridHelper but colors each line by whether its
+// coordinate is an integer or a half-integer, so integers read as more prominent.
+function createGrid(size: number, divisions: number, centerColor: number, majorColor: number, minorColor: number, emphasizeCenter: boolean): THREE.LineSegments {
+    const halfSize = size / 2;
+    const step = size / divisions;
+    const center = divisions / 2;
+
+    const colorCenter = new THREE.Color(centerColor);
+    const colorMajor = new THREE.Color(majorColor);
+    const colorMinor = new THREE.Color(minorColor);
+
+    const vertices: number[] = [];
+    const colors: number[] = [];
+
+    for (let i = 0, k = -halfSize; i <= divisions; i++, k += step) {
+        vertices.push(-halfSize, 0, k, halfSize, 0, k);
+        vertices.push(k, 0, -halfSize, k, 0, halfSize);
+
+        const isInteger = Math.abs(k - Math.round(k)) < 1e-6;
+        const color = (emphasizeCenter && i === center) ? colorCenter : (isInteger ? colorMajor : colorMinor);
+        for (let c = 0; c < 4; c++) colors.push(color.r, color.g, color.b);
+    }
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+    geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+    const material = new THREE.LineBasicMaterial({ vertexColors: true, toneMapped: false });
+    return new THREE.LineSegments(geometry, material);
+}
+
+const gridHelper = createGrid(gridSize, gridDivisions, 0x444455, 0x1a1a2e, 0x0c0c1a, true);
 
 // Align grid corner sort of...
 gridHelper.rotation.x = Math.PI / 2;
 // Position so it covers X: 0..120, Y: -60..60
 // Center at X=0, Y=0 to cover -60 to 60 in both X and Y
-gridHelper.position.set(0, 0, -0.01); 
+gridHelper.position.set(0, 0, -0.01);
 scene.add(gridHelper);
 
 // Perpendicular Grid (Hypothetical "Floor" Plane)
 // Spans X (Real) and Z (Depth)
 // Origin at (0.5, 0, 0). Size 120 covers X=-59.5 to 60.5.
-const criticalGridHelper = new THREE.GridHelper(120, 240, 0x444455, 0x1a1a2e);
+const criticalGridHelper = createGrid(120, 240, 0x444455, 0x1a1a2e, 0x0c0c1a, true);
 // Default is XZ plane, so no rotation needed.
 criticalGridHelper.position.set(0.5, 0, 0);
 scene.add(criticalGridHelper);
 
 // YZ Grid (Passing through Imaginary Axis, X=0)
-// Uniform color (no emphasized center axis) — both center and grid lines match.
-const imaginaryGridHelper = new THREE.GridHelper(120, 240, 0x1a1a2e, 0x1a1a2e);
+// Uniform color (no emphasized center axis) — both center and integer lines match.
+const imaginaryGridHelper = createGrid(120, 240, 0x1a1a2e, 0x1a1a2e, 0x0c0c1a, false);
 imaginaryGridHelper.rotation.z = Math.PI / 2; // Rotate 90 deg around Z to align with YZ plane
 imaginaryGridHelper.position.set(0.5, 0, 0); // matches params.sigma; slides with σ
 imaginaryGridHelper.visible = false; // hidden by default (matches params.showYZGrid)
